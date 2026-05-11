@@ -1240,7 +1240,7 @@ function rmWA(){
   if(w.lineasH.length){
     msg+='\n*⏱ HORAS TRABAJADAS*\n';
     const g={};w.lineasH.forEach(l=>{if(!g[l.fecha])g[l.fecha]={h:0,area:l.det2,turno:l.turno,esH:l.esHoliday,exH:l.extraHora};g[l.fecha].h+=l.cant;});
-    Object.entries(g).sort((a,b)=>a[0]>b[0]?1:-1).forEach(([f,v])=>{const tk=v.turno==='NOCTURNO'?'🌙':'☀️';const fs=v.esH&&v.exH>0?` 🎉+$${v.exH.toFixed(2)}/h`:''';' msg+=`  ${tk} ${f}  ${v.area}  ${hFmt(v.h)}${fs}\n\`;});
+    Object.entries(g).sort(function(a,b){return a[0]>b[0]?1:-1;}).forEach(function(entry){var f=entry[0],v=entry[1];var tk=v.turno==='NOCTURNO'?'🌙':'☀️';var fs=v.esH&&v.exH>0?' 🎉+$'+v.exH.toFixed(2)+'/h':'';msg+='  '+tk+' '+f+'  '+v.area+'  '+hFmt(v.h)+fs+'\n';});
     msg+=LIN+'\n';msg+=`  *Total: ${hFmt(w.hT)}  →  *$${w.tH.toFixed(2)}*\n`;
   }
   if(w.lineasP.length){
@@ -1420,38 +1420,6 @@ function expR(){if(!det.length){toast('Genera primero');return;}const list=bM();
 function expD(){if(!det.length){toast('Genera primero');return;}const data=gFilt();const h=['Fecha','Cedula','Nombre','Turno','Tipo','Detalle','Cant','Unidad','Tarifa','TuPagas','EmpPaga','Dif','Feriado'];dlCSV(toCSV(data.map(r=>[r.fecha,r.cedula,r.nombre,r.turno,r.tipo,r.det2,r.cant.toFixed(2),r.ud,r.tarTu.toFixed(4),r.valTu.toFixed(2),r.valEmp.toFixed(2),r.dif.toFixed(2),r.esHoliday?'SI':'NO']),h),'detalle.csv');toast('✓ CSV');}
 
 // ── Inicializar ROL_PAGOS y ROL_DETALLE desde el front ──────────────────────
-function initSheets(){
-  const btn = event.target;
-  const st  = $d('init-status');
-  btn.disabled = true;
-  btn.textContent = '⏳ Iniciando...';
-  st.textContent = '';
-  fetch(getAPI(),{
-    method: 'POST',
-    body: JSON.stringify({action: 'init_sheets'})
-  })
-  .then(r => r.json())
-  .then(r => {
-    if(r.ok){
-      btn.textContent = '✓ Hojas listas';
-      btn.style.color = 'var(--gr)';
-      st.style.color = 'var(--gr)';
-      st.textContent = (r.msgs || []).join(' · ');
-      toast('✓ ROL_PAGOS y ROL_DETALLE listas en Sheets');
-    } else {
-      btn.textContent = '⚠ Error';
-      st.style.color = 'var(--re)';
-      st.textContent = r.error || 'Error desconocido';
-      btn.disabled = false;
-    }
-  })
-  .catch(err => {
-    btn.textContent = '⚠ Sin conexión';
-    btn.disabled = false;
-    st.style.color = 'var(--re)';
-    st.textContent = err.message;
-  });
-}
 
 
 // ── Crear ROL_PAGOS y ROL_DETALLE en Sheets ──────────────────────────────────
@@ -1476,25 +1444,6 @@ function initSheets(btn){
     });
 }
 
-}
-
-  st.style.color='#60a5fa'; st.textContent='Conectando...';
-  setAPI(url);
-  fetch(url)
-    .then(r => r.json())
-    .then(data => {
-      USERS = (data.usuarios||[]).filter(u=>u.activo);
-      TH=data.tarifa_hora||[];TP=data.talla_prod||[];TF=data.tarifa_expreso||[];
-      FE=data.feriados||[];IA=data.info_adicional||[];LIST=data.listado||[];
-      if(data.drive_folder_id){const df=$d('drive-folder');if(df&&!df.value)df.value=data.drive_folder_id;}
-      st.style.color='#22c55e';
-      st.textContent='✓ Conectado · '+USERS.length+' usuarios · '+TH.length+' áreas';
-    })
-    .catch(err => {
-      st.style.color='#ef4444';
-      st.textContent='✗ Error: '+err.message+' — Revisa la URL y que el script esté desplegado como "Cualquier persona"';
-    });
-}
 </script>
 </body>
 </html>
