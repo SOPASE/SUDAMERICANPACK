@@ -472,6 +472,10 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
         <textarea class="rmod-obs" id="rm-obs" placeholder="Observación..."></textarea>
       </div>
       <!-- Neto -->
+      <div style="padding:8px 18px;background:rgba(0,0,0,0.15);display:flex;justify-content:space-between;font-size:0.8rem">
+        <span style="color:#94a3b8">Total descuentos</span>
+        <span id="rm-total-desc" style="color:#f87171;font-family:var(--mo);font-weight:600">$0.00</span>
+      </div>
       <div class="rmod-neto">
         <span class="rmod-neto-lbl">💰 NETO A PAGAR</span>
         <span class="rmod-neto-val" id="rm-neto">$0.00</span>
@@ -874,7 +878,9 @@ function bM(){
       const cuentaBanco=(ia&&aprobado)?ia.cuenta_banco:'';
       const banco=(ia&&aprobado)?ia.banco:'';
       const tipoCuenta=(ia&&aprobado)?ia.tipo_cuenta:'';
-      const descBancario=0; // sin descuento fijo de transferencia
+      // DESC_BANCO_FIJO: $1 por transferencia bancaria cuando tiene cuenta aprobada
+      const DESC_BANCO_FIJO = 1;
+      const descBancario = (ia&&aprobado&&cuentaBanco) ? DESC_BANCO_FIJO : 0;
       m[k]={cedula:r.cedula,nombre:r.nombre,sector,celular,sede,aprobacion,cuentaBanco,banco,tipoCuenta,descBancario,expresoDia:getExpresoDia(sector),hT:0,eH:0,tH:0,lT:0,eP:0,tP:0,lineasH:[],lineasP:[],fechas:[]};
     }
     if(r.fechaSort&&!m[k].fechas.includes(r.fechaSort))m[k].fechas.push(r.fechaSort);
@@ -921,7 +927,7 @@ function rPrev(){
     return `<tr>
       <td class="vm">${w.cedula}</td>
       <td><button class="btn-link" onclick="openRol('${sc}')">${w.nombre}</button>${w.cuentaBanco?'<br><span style="font-size:0.65rem;color:var(--tl)">🏦 '+w.banco+'</span>':''}</td>
-      <td style="color:var(--tl)">${w.sector?sectEmoji(w.sector)+' '+w.sector:'—'}</td>
+      <td style="color:var(--tl)">${w.sector?sectEmoji(w.sector)+' '+w.sector:'<span style="color:var(--tx3)">—</span>'}</td>
       <td class="vm" style="color:var(--tx2)">${w.diasTrab}</td>
       <td class="vm">${w.hT.toFixed(2)}</td>
       <td class="va">$${w.tH.toFixed(2)}</td>
@@ -983,11 +989,22 @@ function openRol(safeCed){
   $d('rm-av-val').textContent='$'+(w.tP+w.bonusAvance).toFixed(2);
   $d('rm-bruto').textContent='$'+w.bruto.toFixed(2);
   // descuentos fijos
-  if(w.descExpreso>0){
+  // Expreso: muestra si el sector tiene tarifa en TARIFA_EXPRESO
+  if(w.sector && w.expresoDia>0){
     $d('rm-exp-row').style.display='block';
-    $d('rm-exp-lbl').textContent=`Expreso ${w.sector} (${w.diasTrab}d × $${w.expresoDia.toFixed(2)})`;
-    $d('rm-exp-val').textContent='-$'+w.descExpreso.toFixed(2);
-  } else $d('rm-exp-row').style.display='none';
+    $d('rm-exp-lbl').textContent='Expreso '+w.sector+' ('+w.diasTrab+'d x $'+w.expresoDia.toFixed(2)+')';
+    $d('rm-exp-val').textContent=w.descExpreso>0?'-$'+w.descExpreso.toFixed(2):'$0.00';
+  } else $d('rm-exp-row').style.display=w.sector?'block':'none';
+  if(w.sector&&!w.expresoDia){
+    $d('rm-exp-lbl').textContent=w.sector+' (sin tarifa expreso)';
+    $d('rm-exp-val').textContent='$0.00';
+  }
+  // Bancario: muestra si tiene cuenta en INFO_ADICIONAL
+  if(w.cuentaBanco){
+    $d('rm-banc-row').style.display='block';
+    $d('rm-banc-lbl').textContent='Banco: '+w.banco+(w.tipoCuenta?' ('+w.tipoCuenta+')':'')+' Cta: '+w.cuentaBanco;
+    $d('rm-banc-val').textContent=w.descBancario>0?'-$'+w.descBancario.toFixed(2):'Sin desc.';
+  } else $d('rm-banc-row').style.display='none';
   if(w.descBancario>0){
     $d('rm-banc-row').style.display='block';
     $d('rm-banc-lbl').textContent='Desc. transferencia ('+w.banco+')';
@@ -1015,6 +1032,9 @@ function rmCalc(){
   const td=+(w.descExpreso+w.descBancario+anti+multa+otros).toFixed(2);
   const neto=+(w.bruto-td).toFixed(2);
   $d('rm-neto').textContent='$'+neto.toFixed(2);
+  // Update total descuentos display
+  const tdEl=$d('rm-total-desc');
+  if(tdEl) tdEl.textContent=td>0?'-$'+td.toFixed(2):'$0.00';
 }
 
 function rmTab(t){
@@ -1228,7 +1248,7 @@ function buildPdfHTML({w,ov,td,neto,cargo,sede,ini,fin,rango,anti,multa,otros,ob
         ${(w.tP+w.bonusAvance)>0?`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #e2e8f0;font-size:12px"><span style="color:#64748b">📦 Subtotal Avance</span><span>$${(w.tP+w.bonusAvance).toFixed(2)}</span></div>`:''} 
         <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:2px solid ${colH};font-size:14px;font-weight:700;color:${colH}"><span>🔥 TOTAL BRUTO</span><span>$${w.bruto.toFixed(2)}</span></div>
         ${w.descExpreso>0?`<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px"><span style="color:#dc2626">🚌 Expreso ${w.sector} (${w.diasTrab}d × $${w.expresoDia.toFixed(2)})</span><span style="color:#dc2626;font-weight:600">-$${w.descExpreso.toFixed(2)}</span></div>`:''} 
-        ${w.descBancario>0?`<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px"><span style="color:#dc2626">🏦 Desc. transferencia</span><span style="color:#dc2626;font-weight:600">-$${w.descBancario.toFixed(2)}</span></div>`:''} 
+        ${w.descBancario>0?`<div style='display:flex;justify-content:space-between;padding:6px 0;font-size:12px'><span style='color:#dc2626'>🏦 Desc. transferencia (${w.banco})</span><span style='color:#dc2626;font-weight:600'>-$${w.descBancario.toFixed(2)}</span></div>`:''} 
         ${anti>0?`<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px"><span style="color:#dc2626">💰 Anticipo / Préstamo</span><span style="color:#dc2626;font-weight:600">-$${anti.toFixed(2)}</span></div>`:''} 
         ${multa>0?`<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px"><span style="color:#dc2626">⚠ Multa / Sanción</span><span style="color:#dc2626;font-weight:600">-$${multa.toFixed(2)}</span></div>`:''} 
         ${otros>0?`<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px"><span style="color:#dc2626">➕ Otros descuentos</span><span style="color:#dc2626;font-weight:600">-$${otros.toFixed(2)}</span></div>`:''} 
@@ -1338,7 +1358,7 @@ function guardarCierre(){
     const ov=getOv(w.cedula);
     const td=+(w.descExpreso+w.descBancario+ov.anticipo+ov.multa+ov.otros).toFixed(2);
     const neto=+(w.bruto-td).toFixed(2);
-    return{id_rol:idRol,periodo_ini:ini,periodo_fin:fin,cargo,sede,cedula:w.cedula,nombre:w.nombre,sector:w.sector,celular:w.celular,dias_trab:w.diasTrab,horas:+w.hT.toFixed(2),pago_hora:+w.tH.toFixed(2),libras:+w.lT.toFixed(2),pago_avance:+(w.tP+w.bonusAvance).toFixed(2),bruto:w.bruto,desc_expreso:w.descExpreso,desc_bancario:w.descBancario,desc_anticipo:ov.anticipo,desc_multa:ov.multa,desc_otros:ov.otros,desc_obs:ov.obs,total_desc:td,neto,cuenta_banco:w.cuentaBanco,banco:w.banco,drive_url:ov.driveUrl||''};
+    return{id_rol:idRol,periodo_ini:ini,periodo_fin:fin,cargo,sede,cedula:w.cedula,nombre:w.nombre,sector:w.sector,celular:w.celular,dias_trab:w.diasTrab,horas:+w.hT.toFixed(2),pago_hora:+w.tH.toFixed(2),libras:+w.lT.toFixed(2),pago_avance:+(w.tP+w.bonusAvance).toFixed(2),bruto:w.bruto,desc_expreso:w.descExpreso,desc_bancario:w.descBancario,desc_anticipo:ov.anticipo,desc_multa:ov.multa,desc_otros:ov.otros,desc_obs:ov.obs,total_desc:td,neto,cuenta_banco:w.cuentaBanco,banco:w.banco,tipo_cuenta:w.tipoCuenta||'',drive_url:ov.driveUrl||''};
   });
   const rolDetalle=det.map(r=>({id_rol:idRol,cedula:r.cedula,tipo:r.tipo==='HORA'?'HORA':'AVANCE',fecha:r.fecha,fecha_sort:r.fechaSort,turno:r.turno,area:r.det2,hora_ing:r.horaIng,hora_sal:r.horaSal,horas:r.tipo==='HORA'?+r.cant.toFixed(2):0,tarifa:+r.tarTu.toFixed(4),pago:+r.valTu.toFixed(2),completo:1,peso:r.tipo==='PROD'?+r.cant.toFixed(2):0,unid:r.ud,tipo_proceso:r.tipoProceso||'',cliente:r.cliente||'',sede:r.sedeR||sede}));
   // localStorage
@@ -1400,7 +1420,11 @@ function openRolHist(cierreId,key){
   $d('rm-av-val').textContent='$'+(_curRolWorker.tP+_curRolWorker.bonusAvance).toFixed(2);
   $d('rm-bruto').textContent='$'+_curRolWorker.bruto.toFixed(2);
   if(_curRolWorker.descExpreso>0){$d('rm-exp-row').style.display='block';$d('rm-exp-lbl').textContent=`Expreso ${_curRolWorker.sector} (${_curRolWorker.diasTrab}d × $${_curRolWorker.expresoDia.toFixed(2)})`;$d('rm-exp-val').textContent='-$'+_curRolWorker.descExpreso.toFixed(2);}else $d('rm-exp-row').style.display='none';
-  if(_curRolWorker.descBancario>0){$d('rm-banc-row').style.display='block';$d('rm-banc-val').textContent='-$'+_curRolWorker.descBancario.toFixed(2);}else $d('rm-banc-row').style.display='none';
+  if(_curRolWorker.cuentaBanco){
+    $d('rm-banc-row').style.display='block';
+    $d('rm-banc-lbl').textContent='Banco: '+(_curRolWorker.banco||'')+(_curRolWorker.tipoCuenta?' ('+_curRolWorker.tipoCuenta+')':'')+' Cta: '+_curRolWorker.cuentaBanco;
+    $d('rm-banc-val').textContent=_curRolWorker.descBancario>0?'-$'+_curRolWorker.descBancario.toFixed(2):'Sin desc.';
+  } else $d('rm-banc-row').style.display='none';
   $d('rm-anticipo').value=ov.anticipo||0;$d('rm-multa').value=ov.multa||0;$d('rm-otros').value=ov.otros||0;$d('rm-obs').value=ov.obs||'';
   $d('rm-cnt-h').textContent=_curRolWorker.lineasH.length;$d('rm-cnt-a').textContent=_curRolWorker.lineasP.length;
   rmTab('h');rmCalc();$d('rmod').classList.add('show');
