@@ -277,7 +277,8 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
           </div>
           <div>
             <label class="cfg-lbl">📁 Google Drive Folder ID</label>
-            <input class="fin" type="text" id="drive-folder" placeholder="ID de carpeta Drive" style="font-size:0.83rem;padding:8px 12px"/>
+            <input class="fin" type="text" id="drive-folder" placeholder="ID de carpeta Drive" value="1lJLZiujk5q-hBi9T1CYs1UfBU2pnMF3h" style="font-size:0.83rem;padding:8px 12px"/>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:6px"><button onclick="initSheets(this)" style="padding:5px 12px;font-size:0.73rem;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);border-radius:5px;color:var(--gr);cursor:pointer;font-family:var(--fn)">🔧 Crear hojas ROL en Sheets</button><span id="init-st" style="font-size:0.72rem;color:var(--tx3)"></span></div>
           </div>
         </div>
       </div>
@@ -564,6 +565,7 @@ function cargarTarifas(){
     TH=data.tarifa_hora||[];TP=data.talla_prod||[];TF=data.tarifa_expreso||[];
     FE=data.feriados||[];IA=data.info_adicional||[];LIST=data.listado||[];
     tarifasOk=true;
+    if(data.drive_folder_id){const _df=$d('drive-folder');if(_df&&!_df.value)_df.value=data.drive_folder_id;}
     setApiSt('ok',`${TH.length} áreas · ${TP.length} tallas · ${FE.length} feriados · ${LIST.length} listado · ${IA.length} adicional`);
     renderTar();checkReady();
   }).catch(()=>setApiSt('err','Error de conexión con Sheet. Verifica la URL del API.'));
@@ -1260,6 +1262,63 @@ function toCSV(rows,h){return[h,...rows].map(r=>r.map(c=>`"${String(c).replace(/
 function dlCSV(c,f){const b=new Blob(['\uFEFF'+c],{type:'text/csv;charset=utf-8;'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=f;a.click();}
 function expR(){if(!det.length){toast('Genera primero');return;}const list=bM();const h=['Cedula','Nombre','Sector','Celular','Dias','Hrs','Pago_Hrs','Lbs','Pago_Prod','Bruto','Desc_Expreso','Desc_Bancario','Neto','Cuenta','Banco'];dlCSV(toCSV(list.map(w=>{const ov=getOv(w.cedula);const td=+(w.descExpreso+w.descBancario+ov.anticipo+ov.multa+ov.otros).toFixed(2);return[w.cedula,w.nombre,w.sector,w.celular,w.diasTrab,w.hT.toFixed(2),w.tH.toFixed(2),w.lT.toFixed(2),w.tP.toFixed(2),w.bruto.toFixed(2),w.descExpreso.toFixed(2),w.descBancario.toFixed(2),(w.bruto-td).toFixed(2),w.cuentaBanco,w.banco];}),h),'roles.csv');toast('✓ CSV descargado');}
 function expD(){if(!det.length){toast('Genera primero');return;}const data=gFilt();const h=['Fecha','Cedula','Nombre','Turno','Tipo','Detalle','Cant','Unidad','Tarifa','TuPagas','EmpPaga','Dif','Feriado'];dlCSV(toCSV(data.map(r=>[r.fecha,r.cedula,r.nombre,r.turno,r.tipo,r.det2,r.cant.toFixed(2),r.ud,r.tarTu.toFixed(4),r.valTu.toFixed(2),r.valEmp.toFixed(2),r.dif.toFixed(2),r.esHoliday?'SI':'NO']),h),'detalle.csv');toast('✓ CSV');}
+
+// ── Inicializar ROL_PAGOS y ROL_DETALLE desde el front ──────────────────────
+function initSheets(){
+  const btn = event.target;
+  const st  = $d('init-status');
+  btn.disabled = true;
+  btn.textContent = '⏳ Iniciando...';
+  st.textContent = '';
+  fetch(API, {
+    method: 'POST',
+    body: JSON.stringify({action: 'init_sheets'})
+  })
+  .then(r => r.json())
+  .then(r => {
+    if(r.ok){
+      btn.textContent = '✓ Hojas listas';
+      btn.style.color = 'var(--gr)';
+      st.style.color = 'var(--gr)';
+      st.textContent = (r.msgs || []).join(' · ');
+      toast('✓ ROL_PAGOS y ROL_DETALLE listas en Sheets');
+    } else {
+      btn.textContent = '⚠ Error';
+      st.style.color = 'var(--re)';
+      st.textContent = r.error || 'Error desconocido';
+      btn.disabled = false;
+    }
+  })
+  .catch(err => {
+    btn.textContent = '⚠ Sin conexión';
+    btn.disabled = false;
+    st.style.color = 'var(--re)';
+    st.textContent = err.message;
+  });
+}
+
+
+// ── Crear ROL_PAGOS y ROL_DETALLE en Sheets ──────────────────────────────────
+function initSheets(btn){
+  const st=$d('init-st');
+  if(btn){btn.disabled=true;btn.textContent='⏳ Creando...';}
+  fetch(API,{method:'POST',body:JSON.stringify({action:'init_sheets'})})
+    .then(r=>r.json())
+    .then(r=>{
+      if(r.ok){
+        if(btn){btn.textContent='✓ Listas';btn.style.color='var(--gr)';}
+        st.style.color='var(--gr)';st.textContent=(r.msgs||[]).join(' · ');
+        toast('✓ ROL_PAGOS y ROL_DETALLE creadas en Google Sheets');
+      } else {
+        if(btn){btn.textContent='⚠ Error';btn.disabled=false;}
+        st.style.color='var(--re)';st.textContent=r.error||'Error';
+      }
+    })
+    .catch(err=>{
+      if(btn){btn.textContent='⚠ Sin conexión';btn.disabled=false;}
+      st.style.color='var(--re)';st.textContent=err.message;
+    });
+}
 </script>
 </body>
 </html>
