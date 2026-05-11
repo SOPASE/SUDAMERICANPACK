@@ -15,7 +15,7 @@
 --brd:rgba(255,255,255,0.07);--brd2:rgba(255,255,255,0.13);
 --tx:#e8eaf0;--tx2:#8b90a0;--tx3:#454a5a;
 --ac:#3b82f6;--ac2:#1d4ed8;
---gr:#22c55e;--re:#ef4444;--am:#f59e0b;--tl:#14b8a6;--pu:#a78bfa;
+--gr:#3b82f6;--re:#ef4444;--am:#f59e0b;--tl:#14b8a6;--pu:#a78bfa;
 --fn:'IBM Plex Sans',sans-serif;--mo:'IBM Plex Mono',monospace;
 --r:10px;--rs:6px;
 /* SAP brand */
@@ -161,54 +161,54 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
    ════════════════════════════════ */
 .rmod-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:300;align-items:center;justify-content:center;padding:16px}
 .rmod-bg.show{display:flex}
-.rmod-box{background:#0d1f12;border:1px solid #1a4d2a;border-radius:14px;width:100%;max-width:580px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,0.6)}
+.rmod-box{background:#0d1828;border:1px solid #1a3560;border-radius:14px;width:100%;max-width:580px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,0.6)}
 /* header */
-.rmod-hdr{background:#0f2816;border-bottom:1px solid #1a4d2a;padding:14px 18px;display:flex;align-items:center;gap:12px}
-.rmod-avatar{width:40px;height:40px;background:#1a4d2a;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:700;color:#4ade80;flex-shrink:0}
-.rmod-name{font-size:0.92rem;font-weight:700;color:#e2fce8;line-height:1.3}
-.rmod-sub{display:flex;gap:14px;font-size:0.75rem;color:#6ee7a0;margin-top:3px}
+.rmod-hdr{background:#0f1f36;border-bottom:1px solid #1a3560;padding:14px 18px;display:flex;align-items:center;gap:12px}
+.rmod-avatar{width:40px;height:40px;background:#1a3560;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:700;color:var(--sap3);flex-shrink:0}
+.rmod-name{font-size:0.92rem;font-weight:700;color:#e0f2fe;line-height:1.3}
+.rmod-sub{display:flex;gap:14px;font-size:0.75rem;color:#93c5fd;margin-top:3px}
 .rmod-cls{margin-left:auto;background:#ef4444;border:none;color:#fff;font-size:0.75rem;font-weight:600;padding:5px 12px;border-radius:6px;cursor:pointer;font-family:var(--fn);flex-shrink:0}
 /* body scroll */
 .rmod-body{overflow-y:auto;flex:1;display:flex;flex-direction:column}
 /* sections */
-.rmod-sec{padding:14px 18px;border-bottom:1px solid #1a4d2a}
-.rmod-sec-title{font-size:0.65rem;text-transform:uppercase;letter-spacing:0.1em;color:#6ee7a0;margin-bottom:10px;display:flex;align-items:center;gap:6px}
-.rmod-row{display:flex;align-items:center;justify-content:space-between;padding:6px 0;font-size:0.85rem;color:#c8f5d5}
-.rmod-row.total{color:#4ade80;font-weight:700;font-size:0.95rem;border-top:1px solid #1a4d2a;margin-top:5px;padding-top:10px}
+.rmod-sec{padding:14px 18px;border-bottom:1px solid #1a3560}
+.rmod-sec-title{font-size:0.65rem;text-transform:uppercase;letter-spacing:0.1em;color:#93c5fd;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.rmod-row{display:flex;align-items:center;justify-content:space-between;padding:6px 0;font-size:0.85rem;color:#dbeafe}
+.rmod-row.total{color:var(--sap3);font-weight:700;font-size:0.95rem;border-top:1px solid #1a3560;margin-top:5px;padding-top:10px}
 .rmod-row-amount{font-family:var(--mo);font-size:0.9rem;font-weight:600}
 /* descuentos */
-.rmod-desc-exp{display:flex;align-items:center;justify-content:space-between;background:#1a3d1a;border:1px solid #2d6b2d;border-radius:6px;padding:8px 12px;font-size:0.82rem;margin-bottom:8px}
-.rmod-desc-exp-label{color:#86efac}
+.rmod-desc-exp{display:flex;align-items:center;justify-content:space-between;background:#1a3060;border:1px solid #2d5a9e;border-radius:6px;padding:8px 12px;font-size:0.82rem;margin-bottom:8px}
+.rmod-desc-exp-label{color:#bfdbfe}
 .rmod-desc-exp-val{font-family:var(--mo);color:#f87171;font-weight:700}
 .rmod-inp-row{display:flex;align-items:center;justify-content:space-between;padding:5px 0}
-.rmod-inp-lbl{font-size:0.8rem;color:#a7f3d0}
-.rmod-inp{width:80px;padding:5px 8px;background:#0d2b15;border:1px solid #1a4d2a;border-radius:5px;color:#e2fce8;font-family:var(--mo);font-size:0.82rem;text-align:right;outline:none}
-.rmod-inp:focus{border-color:#4ade80}
-.rmod-obs{width:100%;margin-top:8px;padding:8px 10px;background:#0d2b15;border:1px solid #1a4d2a;border-radius:6px;color:#a7f3d0;font-family:var(--fn);font-size:0.8rem;resize:vertical;min-height:48px;outline:none}
-.rmod-obs:focus{border-color:#4ade80}
+.rmod-inp-lbl{font-size:0.8rem;color:#dbeafe}
+.rmod-inp{width:80px;padding:5px 8px;background:#0d1f40;border:1px solid #1a3560;border-radius:5px;color:#e0f2fe;font-family:var(--mo);font-size:0.82rem;text-align:right;outline:none}
+.rmod-inp:focus{border-color:var(--sap3)}
+.rmod-obs{width:100%;margin-top:8px;padding:8px 10px;background:#0d1f40;border:1px solid #1a3560;border-radius:6px;color:#dbeafe;font-family:var(--fn);font-size:0.8rem;resize:vertical;min-height:48px;outline:none}
+.rmod-obs:focus{border-color:var(--sap3)}
 /* neto */
-.rmod-neto{background:linear-gradient(135deg,#064e3b,#065f46);padding:16px 18px;display:flex;align-items:center;justify-content:space-between}
-.rmod-neto-lbl{font-size:0.85rem;color:#a7f3d0;display:flex;align-items:center;gap:8px}
-.rmod-neto-val{font-family:var(--mo);font-size:1.6rem;font-weight:800;color:#34d399}
+.rmod-neto{background:linear-gradient(135deg,#0c2d62,#1a3e7c);padding:16px 18px;display:flex;align-items:center;justify-content:space-between}
+.rmod-neto-lbl{font-size:0.85rem;color:#dbeafe;display:flex;align-items:center;gap:8px}
+.rmod-neto-val{font-family:var(--mo);font-size:1.6rem;font-weight:800;color:#60a5fa}
 /* tabs */
-.rmod-tabs{display:flex;border-bottom:1px solid #1a4d2a;background:#0a1b0d}
-.rmod-tab{flex:1;padding:10px;font-size:0.8rem;background:none;border:none;color:#6ee7a0;cursor:pointer;font-family:var(--fn);border-bottom:2px solid transparent}
-.rmod-tab.on{color:#4ade80;border-bottom-color:#4ade80;font-weight:600;background:#0f2816}
+.rmod-tabs{display:flex;border-bottom:1px solid #1a3560;background:#0a1628}
+.rmod-tab{flex:1;padding:10px;font-size:0.8rem;background:none;border:none;color:#93c5fd;cursor:pointer;font-family:var(--fn);border-bottom:2px solid transparent}
+.rmod-tab.on{color:var(--sap3);border-bottom-color:var(--sap3);font-weight:600;background:#0f1f36}
 /* detail table */
 .rmod-detail{overflow-x:auto;font-size:0.75rem}
 .rmod-detail table{width:100%;border-collapse:collapse}
-.rmod-detail th{padding:7px 10px;text-align:left;color:#4ade80;background:#0a1b0d;font-size:0.65rem;text-transform:uppercase;letter-spacing:0.05em;border-bottom:1px solid #1a4d2a}
-.rmod-detail td{padding:7px 10px;border-bottom:1px solid #0f2816;color:#c8f5d5;white-space:nowrap}
+.rmod-detail th{padding:7px 10px;text-align:left;color:var(--sap3);background:#0a1628;font-size:0.65rem;text-transform:uppercase;letter-spacing:0.05em;border-bottom:1px solid #1a3560}
+.rmod-detail td{padding:7px 10px;border-bottom:1px solid #0f1f36;color:#dbeafe;white-space:nowrap}
 .rmod-detail tr:last-child td{border-bottom:none}
 .rmod-detail tbody tr:hover td{background:rgba(74,222,128,0.04)}
 /* actions */
-.rmod-actions{display:flex;gap:10px;padding:14px 18px;background:#0a1b0d;border-top:1px solid #1a4d2a}
+.rmod-actions{display:flex;gap:10px;padding:14px 18px;background:#0a1628;border-top:1px solid #1a3560}
 .rmod-btn{flex:1;padding:11px;border:none;border-radius:8px;font-family:var(--fn);font-size:0.85rem;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:opacity 0.2s}
 .rmod-btn:hover{opacity:0.85}
-.rmod-btn-save{background:#1a4d2a;color:#4ade80;border:1px solid #2d6b2d}
+.rmod-btn-save{background:#1a3560;color:var(--sap3);border:1px solid #2d5a9e}
 .rmod-btn-pdf{background:#1a3560;color:#60a5fa;border:1px solid #1e4a8c}
-.rmod-btn-wa{background:#0e5c23;color:#22c55e;border:1px solid #166534}
-.rmod-badge-h{font-size:0.7rem;background:rgba(74,222,128,0.15);color:#4ade80;padding:1px 6px;border-radius:10px;margin-left:4px}
+.rmod-btn-wa{background:#1e3a8a;color:#3b82f6;border:1px solid #1e3a8a}
+.rmod-badge-h{font-size:0.7rem;background:rgba(74,222,128,0.15);color:var(--sap3);padding:1px 6px;border-radius:10px;margin-left:4px}
 
 /* ════════════════════════════════
    MODAL WHATSAPP
@@ -281,24 +281,24 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
     <!-- TAB 1: CARGAR -->
     <div id="p1" class="pane on">
       <div class="card">
-        <div class="ctit">Configuración del cierre</div>
-        <div class="cfg-row">
-          <div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">
+          <div style="flex:2;min-width:160px">
             <label class="cfg-lbl">Cargo / Cuadrilla</label>
-            <input class="fin" type="text" id="cargo-input" placeholder="Ej: CUADRILLA ROCIO CHILAN" style="font-size:0.88rem;padding:8px 12px"/>
+            <input class="fin" type="text" id="cargo-input" placeholder="Ej: CUADRILLA ROCIO CHILAN" style="font-size:0.85rem;padding:7px 11px"/>
           </div>
-          <div>
+          <div style="flex:1;min-width:100px">
             <label class="cfg-lbl">Sede</label>
-            <input class="fin" type="text" id="sede-input" placeholder="AMBAS / DURÁN / GYE" style="font-size:0.88rem;padding:8px 12px" value="AMBAS"/>
+            <input class="fin" type="text" id="sede-input" value="AMBAS" style="font-size:0.85rem;padding:7px 11px"/>
           </div>
-          <div>
-            <label class="cfg-lbl">📁 Google Drive Folder ID</label>
-            <input class="fin" type="text" id="drive-folder" placeholder="ID de carpeta Drive" value="1lJLZiujk5q-hBi9T1CYs1UfBU2pnMF3h" style="font-size:0.83rem;padding:8px 12px"/>
-          <div style="display:flex;gap:8px;align-items:center;margin-top:6px"><button onclick="initSheets(this)" style="padding:5px 12px;font-size:0.73rem;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);border-radius:5px;color:var(--gr);cursor:pointer;font-family:var(--fn)">🔧 Crear hojas ROL en Sheets</button><span id="init-st" style="font-size:0.72rem;color:var(--tx3)"></span></div>
+          <div style="flex:2;min-width:160px">
+            <label class="cfg-lbl">📁 Drive Folder ID</label>
+            <div style="display:flex;gap:6px">
+              <input class="fin" type="text" id="drive-folder" placeholder="ID carpeta Drive" value="1lJLZiujk5q-hBi9T1CYs1UfBU2pnMF3h" style="font-size:0.8rem;padding:7px 11px"/>
+              <button onclick="initSheets(this)" style="padding:7px 10px;font-size:0.72rem;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);border-radius:5px;color:var(--gr);cursor:pointer;font-family:var(--fn);white-space:nowrap">🔧 Init</button>
+            </div>
+            <span id="init-st" style="font-size:0.68rem;color:var(--tx3)"></span>
           </div>
         </div>
-      </div>
-      <div class="card">
         <div class="ctit">Cargar archivos SOPASE</div>
         <div class="csub">Tarifas, feriados y listado se cargan desde Google Sheet automáticamente.</div>
         <div id="api-st" class="ldg"><div class="spin"></div><span>Conectando con Google Sheet...</span></div>
@@ -326,6 +326,12 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
         </div>
         <div class="sln" id="sl"></div>
         <button class="bgo" id="bp" onclick="proc()" disabled>⚡ Generar roles consolidados</button>
+      </div>
+      <div class="card">
+        <div class="ctit" style="margin-bottom:10px">📂 Archivos cargados recientemente</div>
+        <div id="file-hist"></div>
+        <button onclick="localStorage.removeItem(FILE_HIST_KEY);renderFileHistory()" style="margin-top:8px;font-size:0.7rem;color:var(--tx3);background:none;border:none;cursor:pointer">🗑 Limpiar historial de archivos</button>
+
       </div>
     </div>
 
@@ -531,6 +537,9 @@ const _nt = 'palma_gye_x7k2';
 
 // ── Cargar URL guardada al iniciar ────────────────────────────────────────────
 // URL viene directo de DEFAULT_API en el archivo
+window.addEventListener('DOMContentLoaded', function(){
+  renderFileHistory();
+});
 
 // ── Estado global ────────────────────────────────────────────────────────────
 let TH=[],TP=[],TF=[],FE=[],IA=[],LIST=[];
@@ -592,7 +601,7 @@ function getExpresoDia(sector){
   const f=TF.find(t=>t.sector===String(sector).toUpperCase().trim());
   return f?f.valor_dia:0;
 }
-function getInfoAd(cedula){const c=normCed(cedula);return IA.find(i=>normCed(i.cedula)===c)||null;}
+function getInfoAd(ced){const c=normCed(ced);return IA.find(i=>normCed(i.cedula)===c)||null;}
 function getListado(cedula){const c=normCed(cedula);return LIST.find(l=>normCed(l.cedula)===c)||null;}
 function getOv(cedula){cedula=normCed(cedula);if(!overrides[cedula])overrides[cedula]={anticipo:0,multa:0,otros:0,obs:'',driveUrl:''};return overrides[cedula];}
 
@@ -741,10 +750,42 @@ function st(id,el){document.querySelectorAll('.pane').forEach(p=>p.classList.rem
 // ── Render tarifas ────────────────────────────────────────────────────────────
 function renderTar(){
   const head='<div class="trow" style="background:transparent;padding:4px 10px;margin-bottom:2px"><div class="tkey"></div><span class="turno-label turno-d" style="min-width:80px;text-align:center">D Diurno</span><div class="tsep"></div><span class="turno-label turno-n" style="min-width:80px;text-align:center">N Nocturno</span></div>';
-  $d('gth').innerHTML=TH.length?head+TH.map(r=>`<div class="trow"><div class="tkey">${r.area}</div><span class="tval" style="min-width:80px;text-align:center">$${Number(r.diurno).toFixed(2)}</span><div class="tsep"></div><span class="tval" style="min-width:80px;text-align:center">$${Number(r.nocturno).toFixed(2)}</span></div>`).join(''):'<div style="color:var(--tx3);padding:1rem">Sin datos</div>';
-  $d('gtp').innerHTML=TP.length?head+TP.map(r=>`<div class="trow"><div class="tkey">${r.proceso}</div><span class="tval" style="min-width:80px;text-align:center">$${Number(r.diurno).toFixed(3)}</span><div class="tsep"></div><span class="tval" style="min-width:80px;text-align:center">$${Number(r.nocturno).toFixed(3)}</span></div>`).join(''):'<div style="color:var(--tx3);padding:1rem">Sin datos</div>';
+  $d('gth').innerHTML=TH.length?head+TH.map(r=>`<div class="trow">
+    <div class="tkey">${r.area}</div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <span style="font-size:0.65rem;color:var(--tx3)">D</span>
+      <input class="t-edit" type="number" step="0.01" value="${Number(r.diurno).toFixed(2)}"
+        style="width:68px;padding:4px 6px;background:var(--bg2);border:1px solid var(--brd2);border-radius:4px;color:var(--am);font-family:var(--mo);font-size:0.82rem;text-align:right;outline:none"
+        onchange="saveTarifa('TARIFA_HORA',${r.idx},'diurno',this.value,'nocturno',null)"
+        title="Tarifa diurna — haz clic para editar"/>
+    </div>
+    <div class="tsep"></div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <span style="font-size:0.65rem;color:var(--tx3)">N</span>
+      <input class="t-edit" type="number" step="0.01" value="${Number(r.nocturno).toFixed(2)}"
+        style="width:68px;padding:4px 6px;background:var(--bg2);border:1px solid var(--brd2);border-radius:4px;color:#a5b4fc;font-family:var(--mo);font-size:0.82rem;text-align:right;outline:none"
+        onchange="saveTarifa('TARIFA_HORA',${r.idx},null,null,'nocturno',this.value)"
+        title="Tarifa nocturna — haz clic para editar"/>
+    </div>
+  </div>`).join(''):'<div style="color:var(--tx3);padding:1rem">Sin datos</div>';
+  $d('gtp').innerHTML=TP.length?head+TP.map(r=>`<div class="trow">
+    <div class="tkey">${r.proceso}<br><span style="font-size:0.65rem;color:var(--tx3)">${r.tipo||''}</span></div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <span style="font-size:0.65rem;color:var(--tx3)">D</span>
+      <input class="t-edit" type="number" step="0.001" value="${Number(r.diurno).toFixed(3)}"
+        style="width:72px;padding:4px 6px;background:var(--bg2);border:1px solid var(--brd2);border-radius:4px;color:var(--am);font-family:var(--mo);font-size:0.82rem;text-align:right;outline:none"
+        onchange="saveTarifa('TALLA_PROD',${r.idx},'diurno',this.value,'nocturno',null)"/>
+    </div>
+    <div class="tsep"></div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <span style="font-size:0.65rem;color:var(--tx3)">N</span>
+      <input class="t-edit" type="number" step="0.001" value="${Number(r.nocturno).toFixed(3)}"
+        style="width:72px;padding:4px 6px;background:var(--bg2);border:1px solid var(--brd2);border-radius:4px;color:#a5b4fc;font-family:var(--mo);font-size:0.82rem;text-align:right;outline:none"
+        onchange="saveTarifa('TALLA_PROD',${r.idx},null,null,'nocturno',this.value)"/>
+    </div>
+  </div>`).join(''):'<div style="color:var(--tx3);padding:1rem">Sin datos</div>';
   $d('gfer').innerHTML=FE.length?FE.map(f=>`<div class="fer-row"><span class="fer-date">${f.fecha}</span><span class="fer-name">${f.nombre}</span><span class="fer-extra">+$${f.extra_hora_pg}/h &nbsp;·&nbsp; +$${f.extra_avance_pg}/día</span></div>`).join(''):'<div style="color:var(--tx3)">Sin feriados</div>';
-  $d('gexp').innerHTML=TF.length?TF.map(t=>`<div class="exp-row"><span class="exp-sector">${sectEmoji(t.sector)} ${t.sector}</span><span class="exp-valor">-$${t.valor_dia.toFixed(2)}/día</span></div>`).join(''):'<div style="color:var(--tx3)">Sin tarifas expreso</div>';
+  $d('gexp').innerHTML=TF.length?TF.map(t=>`<div class="exp-row"><span class="exp-sector">${sectEmoji(t.sector)} <strong>${t.sector||'(sin nombre)'}</strong></span><span class="exp-valor" style="color:var(--re)">-$${(t.valor_dia||0).toFixed(2)}/día</span></div>`).join(''):'<div style="color:var(--tx3)">Sin tarifas expreso</div>';
 }
 
 // ── Carga archivos ────────────────────────────────────────────────────────────
@@ -761,8 +802,10 @@ function lf(input,tipo){
     const headers=raw[hr].map(h=>h?String(h).trim().toUpperCase():'');
     const rows=[];
     for(let i=hr+1;i<raw.length;i++){const r=raw[i];if(!r||r.every(c=>c===null||c===''))continue;const obj={};headers.forEach((h,idx)=>{obj[h]=r[idx];});const nom=String(obj['NOMBRE']||'').trim();if(nom&&nom.toUpperCase()!=='NOMBRE')rows.push(obj);}
-    if(tipo==='h'){dH=rows;loaded.h=true;const ok=$d('okh');ok.textContent='✓ '+rows.length+' registros';ok.style.display='block';$d('zh').classList.add('ok');}
-    else{dA=rows;loaded.a=true;const ok=$d('oka');ok.textContent='✓ '+rows.length+' registros';ok.style.display='block';$d('za').classList.add('ok');}
+    if(tipo==='h'){dH=rows;loaded.h=true;const ok=$d('okh');ok.textContent='✓ '+rows.length+' registros';ok.style.display='block';$d('zh').classList.add('ok');
+      saveFileHistory('HORA', file.name, rows.length);}
+    else{dA=rows;loaded.a=true;const ok=$d('oka');ok.textContent='✓ '+rows.length+' registros';ok.style.display='block';$d('za').classList.add('ok');
+      saveFileHistory('AVANCE', file.name, rows.length);}
     checkReady();
   };
   reader.readAsArrayBuffer(file);
@@ -823,14 +866,16 @@ function bM(){
     if(!m[k]){
       const ia=getInfoAd(r.cedula);
       const li=getListado(r.cedula);
-      const sector=(li&&li.sector)||(ia&&ia.sector)||'';
+      const sector=(li&&li.sector)||'';
       const celular=(li&&li.celular)||'';
+      const sede=(li&&li.sede)||'';
       const aprobacion=ia?ia.aprobacion:'';
       const aprobado=['SI','SÍ','YES','S','1','TRUE'].includes((aprobacion||'').toUpperCase().trim());
       const cuentaBanco=(ia&&aprobado)?ia.cuenta_banco:'';
       const banco=(ia&&aprobado)?ia.banco:'';
-      const descBancario=(ia&&aprobado&&cuentaBanco)?ia.desc_bancario:0;
-      m[k]={cedula:r.cedula,nombre:r.nombre,sector,celular,aprobacion,cuentaBanco,banco,descBancario,expresoDia:getExpresoDia(sector),hT:0,eH:0,tH:0,lT:0,eP:0,tP:0,lineasH:[],lineasP:[],fechas:[]};
+      const tipoCuenta=(ia&&aprobado)?ia.tipo_cuenta:'';
+      const descBancario=0; // sin descuento fijo de transferencia
+      m[k]={cedula:r.cedula,nombre:r.nombre,sector,celular,sede,aprobacion,cuentaBanco,banco,tipoCuenta,descBancario,expresoDia:getExpresoDia(sector),hT:0,eH:0,tH:0,lT:0,eP:0,tP:0,lineasH:[],lineasP:[],fechas:[]};
     }
     if(r.fechaSort&&!m[k].fechas.includes(r.fechaSort))m[k].fechas.push(r.fechaSort);
     if(r.tipo==='HORA'){m[k].hT+=r.cant;m[k].eH+=r.valEmp;m[k].tH+=r.valTu;m[k].lineasH.push(r);}
@@ -928,8 +973,9 @@ function openRol(safeCed){
   const subParts=[];
   if(w.celular)subParts.push('📱 '+w.celular);
   if(w.sector)subParts.push(sectEmoji(w.sector)+' '+w.sector);
-  if(w.cuentaBanco)subParts.push('🏦 '+w.cuentaBanco+' ('+w.banco+')');
-  $d('rm-sub').innerHTML=subParts.join('&nbsp;&nbsp;');
+  if(w.sede)subParts.push('🏢 '+w.sede);
+  if(w.cuentaBanco)subParts.push('🏦 '+w.cuentaBanco+' · '+w.banco+(w.tipoCuenta?' ('+w.tipoCuenta+')':''));
+  $d('rm-sub').innerHTML=subParts.join('&nbsp;&nbsp;&nbsp;');
   // ingresos
   $d('rm-hrs-lbl').textContent='Horas ('+w.lineasH.length+' turnos)';
   $d('rm-hrs-val').textContent='$'+w.tH.toFixed(2);
@@ -1444,6 +1490,54 @@ function initSheets(btn){
     });
 }
 
+
+// ── Guardar tarifa editada en Sheet ──────────────────────────────────────────
+function saveTarifa(sheet, idx, dKey, dVal, nKey, nVal){
+  const payload = {sheet, idx};
+  // Build the payload based on which value changed
+  if(dVal!==null){ payload.diurno = parseFloat(dVal)||0; }
+  if(nVal!==null){ payload.nocturno = parseFloat(nVal)||0; }
+  // If only one value sent, get the other from TH/TP
+  if(sheet==='TARIFA_HORA'){
+    const r=TH.find(x=>x.idx===idx);
+    if(r){ payload.diurno=payload.diurno!==undefined?payload.diurno:r.diurno;
+           payload.nocturno=payload.nocturno!==undefined?payload.nocturno:r.nocturno;
+           if(dVal!==null) r.diurno=payload.diurno;
+           if(nVal!==null) r.nocturno=payload.nocturno; }
+  } else {
+    const r=TP.find(x=>x.idx===idx);
+    if(r){ payload.diurno=payload.diurno!==undefined?payload.diurno:r.diurno;
+           payload.nocturno=payload.nocturno!==undefined?payload.nocturno:r.nocturno;
+           if(dVal!==null) r.diurno=payload.diurno;
+           if(nVal!==null) r.nocturno=payload.nocturno; }
+  }
+  fetch(getAPI(),{method:'POST',body:JSON.stringify(payload)})
+    .then(r=>r.json())
+    .then(r=>{ if(r.ok) toast('✓ Tarifa guardada en Sheet'); })
+    .catch(()=>toast('⚠ Error guardando tarifa'));
+}
+
+// ── Historial de archivos subidos ────────────────────────────────────────────
+const FILE_HIST_KEY='sap_files_v1';
+function saveFileHistory(tipo, nombre, registros){
+  const hist = JSON.parse(localStorage.getItem(FILE_HIST_KEY)||'[]');
+  hist.unshift({tipo, nombre, registros, fecha: new Date().toLocaleString('es-EC',{timeZone:'America/Guayaquil'})});
+  localStorage.setItem(FILE_HIST_KEY, JSON.stringify(hist.slice(0,50)));
+  renderFileHistory();
+}
+function renderFileHistory(){
+  const el = $d('file-hist');
+  if(!el) return;
+  const hist = JSON.parse(localStorage.getItem(FILE_HIST_KEY)||'[]');
+  if(!hist.length){ el.innerHTML='<div style="color:var(--tx3);font-size:0.75rem;padding:8px">Sin archivos cargados aún</div>'; return; }
+  el.innerHTML = hist.slice(0,10).map(f=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--brd);font-size:0.75rem">
+      <span style="font-size:0.9rem">${f.tipo==='HORA'?'🕐':'📦'}</span>
+      <span style="flex:1;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.nombre}</span>
+      <span class="vm" style="color:var(--tl)">${f.registros} reg</span>
+      <span style="color:var(--tx3)">${f.fecha.split(',')[0]}</span>
+    </div>`).join('');
+}
 </script>
 </body>
 </html>
