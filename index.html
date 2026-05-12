@@ -7,129 +7,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js">
-// ── Toggle detalle de un cierre ───────────────────────────────────────────────
-function toggleDetalle(id){
-  const el=$d(id);
-  const btn=$d('btn-'+id);
-  if(!el) return;
-  const open=el.style.display==='none';
-  el.style.display=open?'block':'none';
-  if(btn) btn.textContent=(open?'▼ Ocultar Detalle':'▶ Ver Detalle')+btn.textContent.substring(btn.textContent.indexOf('('));
-}
-
-// ── Marcar todos los trabajadores de un cierre como pagados ──────────────────
-function marcarTodosPagados(cierreId){
-  if(!confirm('¿Marcar TODOS los trabajadores de este cierre como PAGADOS?')) return;
-  const hist=loadHist();
-  const c=hist.find(function(x){return x.id===cierreId;});
-  if(!c) return;
-  const fd=new Date().toLocaleString('es-EC',{timeZone:'America/Guayaquil'});
-  c.trabajadores.forEach(function(t){
-    if(t.estado!=='pagado'){ t.estado='pagado'; t.fecha_pago=fd; }
-  });
-  saveHistData(hist);
-  // Sync to Sheets in batch
-  c.trabajadores.forEach(function(t){
-    fetch(getAPI(),{method:'POST',body:JSON.stringify({
-      action:'update_estado',id_rol:cierreId,cedula:t.cedula,
-      estado:'PAGADO',fecha_pago:fd
-    })}).catch(function(){});
-  });
-  toast('✓ Todos marcados como pagados');
-  renderHist();
-}
-
-// ── Guardar cierre específico en Sheets ───────────────────────────────────────
-function guardarEnSheets(cierreId){
-  const hist=loadHist();
-  const c=hist.find(function(x){return x.id===cierreId;});
-  if(!c){toast('Cierre no encontrado');return;}
-  const btn=event.target;
-  btn.textContent='⏳ Guardando...';btn.disabled=true;
-  const rolPagos=c.trabajadores.map(function(t){
-    return{id_rol:c.id,periodo_ini:c.periodo_ini,periodo_fin:c.periodo_fin,cargo:c.cargo,sede:c.sede,
-      cedula:t.cedula,nombre:t.nombre,sector:t.sector||'',celular:t.celular||'',
-      dias_trab:t.diasTrab||0,horas:t.hrsT||0,pago_hora:t.total_tu_h||0,
-      libras:t.lbsT||0,pago_avance:t.total_tu_p||0,bruto:t.bruto||t.total_tu||0,
-      desc_expreso:t.desc_expreso||0,desc_bancario:t.desc_bancario||0,
-      desc_anticipo:t.desc_anticipo||0,desc_multa:t.desc_multa||0,
-      desc_otros:t.desc_otros||0,desc_obs:t.desc_obs||'',
-      total_desc:t.total_desc||0,neto:t.neto||0,
-      cuenta_banco:t.cuentaBanco||'',banco:t.banco||'',drive_url:t.drive_url||''};
-  });
-  fetch(getAPI(),{method:'POST',body:JSON.stringify({action:'guardar_rol',rol_pagos:rolPagos,rol_detalle:[]})})
-    .then(function(r){return r.json();})
-    .then(function(r){
-      btn.textContent='✓ Guardado';
-      c._pendiente_sheets=false;
-      saveHistData(hist);
-      toast('✓ '+rolPagos.length+' registros guardados en Sheets');
-    })
-    .catch(function(){btn.textContent='⚠ Error';btn.disabled=false;});
-}
-
-// ── Exportar Nómina como XLSX ─────────────────────────────────────────────────
-function exportarNomina(cierreId){
-  const hist=loadHist();
-  const c=hist.find(function(x){return x.id===cierreId;});
-  if(!c){toast('Cierre no encontrado');return;}
-  const tAll=c.trabajadores||[];
-
-  // Build data array matching the template format
-  const wsData=[];
-  // Row 1: title
-  wsData.push(['SUDAMERICAN PACK — ROL DE PAGOS',...Array(25).fill('')]);
-  // Row 2: info
-  wsData.push(['ROL:',c.id,'','PERÍODO:',c.rango||'','','CARGO:',c.cargo||'','','SEDE:',c.sede||'',...Array(15).fill('')]);
-  // Row 3: headers
-  wsData.push(['N°','CÉDULA','NOMBRE COMPLETO','CARGO','SEDE','SECTOR','CELULAR',
-    'DÍAS','HORAS','$ HORA','LIBRAS','$ AVANCE','BRUTO',
-    'DESC.EXPRESO','DESC.BANCARIO','DESC.ANTICIPO','DESC.MULTA','DESC.OTROS',
-    'TOTAL DESC.','NETO A PAGAR','BANCO','N° CUENTA','TITULAR','ESTADO','FECHA PAGO','OBS']);
-  // Data rows
-  tAll.forEach(function(t,i){
-    const titular=t.nombreProp||t.nombre;
-    wsData.push([
-      i+1, t.cedula, t.nombre, c.cargo||'', c.sede||'', t.sector||'', t.celular||'',
-      t.diasTrab||0,
-      +(t.hrsT||0).toFixed(2),       +(t.total_tu_h||0).toFixed(2),
-      +(t.lbsT||0).toFixed(2),       +(t.total_tu_p||0).toFixed(2),
-      +(t.bruto||t.total_tu||0).toFixed(2),
-      +(t.desc_expreso||0).toFixed(2), +(t.desc_bancario||0).toFixed(2),
-      +(t.desc_anticipo||0).toFixed(2),+(t.desc_multa||0).toFixed(2),
-      +(t.desc_otros||0).toFixed(2),   +(t.total_desc||0).toFixed(2),
-      +(t.neto||0).toFixed(2),
-      t.banco||'', t.cuentaBanco||'', titular,
-      t.estado==='pagado'?'PAGADO':'PENDIENTE', t.fecha_pago||'', t.desc_obs||''
-    ]);
-  });
-  // Totals row
-  const n=tAll.length+4; // data ends at row n
-  wsData.push(['TOTALES','','','','','','',
-    {f:'SUM(H4:H'+(n-1)+'}'},{f:'SUM(I4:I'+(n-1)+')'},
-    {f:'SUM(J4:J'+(n-1)+')'},{f:'SUM(K4:K'+(n-1)+')'},
-    {f:'SUM(L4:L'+(n-1)+')'},{f:'SUM(M4:M'+(n-1)+')'},
-    {f:'SUM(N4:N'+(n-1)+')'},{f:'SUM(O4:O'+(n-1)+')'},
-    {f:'SUM(P4:P'+(n-1)+')'},{f:'SUM(Q4:Q'+(n-1)+')'},
-    {f:'SUM(R4:R'+(n-1)+')'},{f:'SUM(S4:S'+(n-1)+')'},
-    {f:'SUM(T4:T'+(n-1)+')'},'','','','','',''
-  ]);
-
-  const wb=XLSX.utils.book_new();
-  const ws=XLSX.utils.aoa_to_sheet(wsData);
-  // Column widths
-  ws['!cols']=[{wch:4},{wch:12},{wch:32},{wch:20},{wch:8},{wch:12},{wch:12},
-    {wch:5},{wch:8},{wch:8},{wch:8},{wch:8},{wch:10},
-    {wch:10},{wch:10},{wch:10},{wch:10},{wch:10},{wch:10},{wch:11},
-    {wch:12},{wch:12},{wch:32},{wch:10},{wch:12},{wch:16}];
-  // Freeze header rows
-  ws['!freeze']={xSplit:0,ySplit:3};
-  XLSX.utils.book_append_sheet(wb,'NÓMINA',ws);
-  XLSX.writeFile(wb,'NOMINA_'+c.id+'.xlsx');
-  toast('✓ Nómina exportada: NOMINA_'+c.id+'.xlsx');
-}
-</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -1856,5 +1734,127 @@ function renderHist(){
 
   const cc=$d('hf-count');if(cc)cc.textContent=totalC+' cierres';
 }
+// ── Toggle detalle de un cierre ───────────────────────────────────────────────
+function toggleDetalle(id){
+  const el=$d(id);
+  const btn=$d('btn-'+id);
+  if(!el) return;
+  const open=el.style.display==='none';
+  el.style.display=open?'block':'none';
+  if(btn) btn.textContent=(open?'▼ Ocultar Detalle':'▶ Ver Detalle')+btn.textContent.substring(btn.textContent.indexOf('('));
+}
 
->
+// ── Marcar todos los trabajadores de un cierre como pagados ──────────────────
+function marcarTodosPagados(cierreId){
+  if(!confirm('¿Marcar TODOS los trabajadores de este cierre como PAGADOS?')) return;
+  const hist=loadHist();
+  const c=hist.find(function(x){return x.id===cierreId;});
+  if(!c) return;
+  const fd=new Date().toLocaleString('es-EC',{timeZone:'America/Guayaquil'});
+  c.trabajadores.forEach(function(t){
+    if(t.estado!=='pagado'){ t.estado='pagado'; t.fecha_pago=fd; }
+  });
+  saveHistData(hist);
+  // Sync to Sheets in batch
+  c.trabajadores.forEach(function(t){
+    fetch(getAPI(),{method:'POST',body:JSON.stringify({
+      action:'update_estado',id_rol:cierreId,cedula:t.cedula,
+      estado:'PAGADO',fecha_pago:fd
+    })}).catch(function(){});
+  });
+  toast('✓ Todos marcados como pagados');
+  renderHist();
+}
+
+// ── Guardar cierre específico en Sheets ───────────────────────────────────────
+function guardarEnSheets(cierreId){
+  const hist=loadHist();
+  const c=hist.find(function(x){return x.id===cierreId;});
+  if(!c){toast('Cierre no encontrado');return;}
+  const btn=event.target;
+  btn.textContent='⏳ Guardando...';btn.disabled=true;
+  const rolPagos=c.trabajadores.map(function(t){
+    return{id_rol:c.id,periodo_ini:c.periodo_ini,periodo_fin:c.periodo_fin,cargo:c.cargo,sede:c.sede,
+      cedula:t.cedula,nombre:t.nombre,sector:t.sector||'',celular:t.celular||'',
+      dias_trab:t.diasTrab||0,horas:t.hrsT||0,pago_hora:t.total_tu_h||0,
+      libras:t.lbsT||0,pago_avance:t.total_tu_p||0,bruto:t.bruto||t.total_tu||0,
+      desc_expreso:t.desc_expreso||0,desc_bancario:t.desc_bancario||0,
+      desc_anticipo:t.desc_anticipo||0,desc_multa:t.desc_multa||0,
+      desc_otros:t.desc_otros||0,desc_obs:t.desc_obs||'',
+      total_desc:t.total_desc||0,neto:t.neto||0,
+      cuenta_banco:t.cuentaBanco||'',banco:t.banco||'',drive_url:t.drive_url||''};
+  });
+  fetch(getAPI(),{method:'POST',body:JSON.stringify({action:'guardar_rol',rol_pagos:rolPagos,rol_detalle:[]})})
+    .then(function(r){return r.json();})
+    .then(function(r){
+      btn.textContent='✓ Guardado';
+      c._pendiente_sheets=false;
+      saveHistData(hist);
+      toast('✓ '+rolPagos.length+' registros guardados en Sheets');
+    })
+    .catch(function(){btn.textContent='⚠ Error';btn.disabled=false;});
+}
+
+// ── Exportar Nómina como XLSX ─────────────────────────────────────────────────
+function exportarNomina(cierreId){
+  const hist=loadHist();
+  const c=hist.find(function(x){return x.id===cierreId;});
+  if(!c){toast('Cierre no encontrado');return;}
+  const tAll=c.trabajadores||[];
+
+  // Build data array matching the template format
+  const wsData=[];
+  // Row 1: title
+  wsData.push(['SUDAMERICAN PACK — ROL DE PAGOS',...Array(25).fill('')]);
+  // Row 2: info
+  wsData.push(['ROL:',c.id,'','PERÍODO:',c.rango||'','','CARGO:',c.cargo||'','','SEDE:',c.sede||'',...Array(15).fill('')]);
+  // Row 3: headers
+  wsData.push(['N°','CÉDULA','NOMBRE COMPLETO','CARGO','SEDE','SECTOR','CELULAR',
+    'DÍAS','HORAS','$ HORA','LIBRAS','$ AVANCE','BRUTO',
+    'DESC.EXPRESO','DESC.BANCARIO','DESC.ANTICIPO','DESC.MULTA','DESC.OTROS',
+    'TOTAL DESC.','NETO A PAGAR','BANCO','N° CUENTA','TITULAR','ESTADO','FECHA PAGO','OBS']);
+  // Data rows
+  tAll.forEach(function(t,i){
+    const titular=t.nombreProp||t.nombre;
+    wsData.push([
+      i+1, t.cedula, t.nombre, c.cargo||'', c.sede||'', t.sector||'', t.celular||'',
+      t.diasTrab||0,
+      +(t.hrsT||0).toFixed(2),       +(t.total_tu_h||0).toFixed(2),
+      +(t.lbsT||0).toFixed(2),       +(t.total_tu_p||0).toFixed(2),
+      +(t.bruto||t.total_tu||0).toFixed(2),
+      +(t.desc_expreso||0).toFixed(2), +(t.desc_bancario||0).toFixed(2),
+      +(t.desc_anticipo||0).toFixed(2),+(t.desc_multa||0).toFixed(2),
+      +(t.desc_otros||0).toFixed(2),   +(t.total_desc||0).toFixed(2),
+      +(t.neto||0).toFixed(2),
+      t.banco||'', t.cuentaBanco||'', titular,
+      t.estado==='pagado'?'PAGADO':'PENDIENTE', t.fecha_pago||'', t.desc_obs||''
+    ]);
+  });
+  // Totals row
+  const n=tAll.length+4; // data ends at row n
+  wsData.push(['TOTALES','','','','','','',
+    {f:'SUM(H4:H'+(n-1)+'}'},{f:'SUM(I4:I'+(n-1)+')'},
+    {f:'SUM(J4:J'+(n-1)+')'},{f:'SUM(K4:K'+(n-1)+')'},
+    {f:'SUM(L4:L'+(n-1)+')'},{f:'SUM(M4:M'+(n-1)+')'},
+    {f:'SUM(N4:N'+(n-1)+')'},{f:'SUM(O4:O'+(n-1)+')'},
+    {f:'SUM(P4:P'+(n-1)+')'},{f:'SUM(Q4:Q'+(n-1)+')'},
+    {f:'SUM(R4:R'+(n-1)+')'},{f:'SUM(S4:S'+(n-1)+')'},
+    {f:'SUM(T4:T'+(n-1)+')'},'','','','','',''
+  ]);
+
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet(wsData);
+  // Column widths
+  ws['!cols']=[{wch:4},{wch:12},{wch:32},{wch:20},{wch:8},{wch:12},{wch:12},
+    {wch:5},{wch:8},{wch:8},{wch:8},{wch:8},{wch:10},
+    {wch:10},{wch:10},{wch:10},{wch:10},{wch:10},{wch:10},{wch:11},
+    {wch:12},{wch:12},{wch:32},{wch:10},{wch:12},{wch:16}];
+  // Freeze header rows
+  ws['!freeze']={xSplit:0,ySplit:3};
+  XLSX.utils.book_append_sheet(wb,'NÓMINA',ws);
+  XLSX.writeFile(wb,'NOMINA_'+c.id+'.xlsx');
+  toast('✓ Nómina exportada: NOMINA_'+c.id+'.xlsx');
+}
+</script>
+</body>
+</html>
