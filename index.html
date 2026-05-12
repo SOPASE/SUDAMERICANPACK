@@ -121,6 +121,9 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
 .bguardar:hover{opacity:0.9}.bguardar:disabled{opacity:0.3;cursor:not-allowed;background:var(--bg3);color:var(--tx2)}
 /* Historial */
 .hbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px}
+.hfilt{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px;padding:12px 16px;background:var(--bg2);border:1px solid var(--brd);border-radius:var(--r)}
+.hfilt select,.hfilt input{padding:6px 10px;background:var(--bg3);border:1px solid var(--brd2);border-radius:var(--rs);color:var(--tx);font-family:var(--fn);font-size:0.8rem;outline:none}
+.hfilt label{font-size:0.72rem;color:var(--tx2)}
 .bdel-all{padding:7px 14px;font-size:0.78rem;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:var(--rs);color:var(--re);cursor:pointer;font-family:var(--fn)}
 .hcierre{background:var(--bg2);border:1px solid var(--brd2);border-radius:var(--r);margin-bottom:16px;overflow:hidden}
 .hchead{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--brd);flex-wrap:wrap;gap:8px}
@@ -417,7 +420,35 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
         <div><div class="ctit">📚 Historial de cierres</div><div style="font-size:0.78rem;color:var(--tx2);margin-top:3px">PDFs guardados en Drive · Estado sincronizado con Sheets</div></div>
         <button class="bdel-all" onclick="clearHist()">🗑 Limpiar local</button>
       </div>
-      <div id="hist-body"></div>
+      <div class="hfilt">
+  <div style="display:flex;align-items:center;gap:6px">
+    <label>🔍</label>
+    <input id="hf-search" type="text" placeholder="Nombre o cédula..." style="min-width:180px" oninput="renderHist()"/>
+  </div>
+  <div style="display:flex;align-items:center;gap:6px">
+    <label>Estado</label>
+    <select id="hf-estado" onchange="renderHist()">
+      <option value="">Todos</option>
+      <option value="pendiente">Pendientes</option>
+      <option value="pagado">Pagados</option>
+    </select>
+  </div>
+  <div style="display:flex;align-items:center;gap:6px">
+    <label>Sector</label>
+    <input id="hf-sector" type="text" placeholder="Sector..." style="width:100px" oninput="renderHist()"/>
+  </div>
+  <div style="display:flex;align-items:center;gap:6px">
+    <label>Corte desde</label>
+    <input id="hf-desde" type="date" onchange="renderHist()"/>
+  </div>
+  <div style="display:flex;align-items:center;gap:6px">
+    <label>hasta</label>
+    <input id="hf-hasta" type="date" onchange="renderHist()"/>
+  </div>
+  <button onclick="clearHistFilters()" style="padding:5px 12px;font-size:0.75rem;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:var(--rs);color:var(--re);cursor:pointer;font-family:var(--fn)">✕ Limpiar</button>
+  <span id="hf-count" style="font-size:0.72rem;color:var(--tx3);margin-left:auto;font-family:var(--mo)"></span>
+</div>
+<div id="hist-body"></div>
     </div>
 
   </div>
@@ -957,7 +988,8 @@ function rPrev(){
       <td class="vp" style="font-size:0.92rem;font-weight:700">$${neto.toFixed(2)}</td>
       <td><button class="wa-btn-sm" onclick="openRol('${sc}')" title="Ver rol">👁</button></td>
     </tr>`;
-  }).join('');
+  }).filter(Boolean).join('');
+  const countEl=$d('hf-count');if(countEl)countEl.textContent=totalTrab+' trabajadores';
 }
 
 // ── Detalle Tab 4 ─────────────────────────────────────────────────────────────
@@ -1144,8 +1176,8 @@ function renderRmAvance(){
       +'</tr>';
   }).join('');
   const footer = '<tr style="background:rgba(59,130,246,0.08);font-weight:600;border-top:2px solid rgba(59,130,246,0.3)">'
-    +'<td colspan="2" style="color:var(--sap3);font-size:0.75rem;padding:9px 10px">TOTAL PRODUCCIÓN</td>'
-    +'<td style="font-family:var(--mo);color:var(--am);text-align:right">'+totalLb.toFixed(2)+'</td>'
+    +'<td colspan="2" style="color:#93c5fd;font-size:0.75rem;padding:9px 10px;letter-spacing:0.05em">TOTAL PRODUCCIÓN</td>'
+    +'<td style="font-family:monospace;color:#fbbf24;font-weight:700;text-align:right;padding:8px 10px">'+totalLb.toFixed(2)+'</td>'
     +'<td style="color:var(--tx3)">lb</td>'
     +'<td></td>'
     +'<td style="font-family:var(--mo);font-weight:700;color:var(--gr);text-align:right">$'+totalV.toFixed(2)+'</td>'
@@ -1158,12 +1190,12 @@ function renderRmAvance(){
       +'</tr>':'';
   el.innerHTML='<table style="width:100%;border-collapse:collapse;font-size:0.76rem">'
     +'<thead><tr>'
-    +'<th style="padding:8px 10px;color:var(--tx2);font-size:0.65rem;text-transform:uppercase;background:rgba(0,0,0,0.2);text-align:left">Fecha</th>'
-    +'<th style="padding:8px 10px;color:var(--tx2);font-size:0.65rem;text-transform:uppercase;background:rgba(0,0,0,0.2);text-align:left">Talla</th>'
-    +'<th style="padding:8px 10px;color:var(--tx2);font-size:0.65rem;text-transform:uppercase;background:rgba(0,0,0,0.2);text-align:right">Libras</th>'
-    +'<th style="padding:8px 10px;color:var(--tx2);font-size:0.65rem;text-transform:uppercase;background:rgba(0,0,0,0.2)"></th>'
-    +'<th style="padding:8px 10px;color:var(--tx2);font-size:0.65rem;text-transform:uppercase;background:rgba(0,0,0,0.2);text-align:left">Tarifa</th>'
-    +'<th style="padding:8px 10px;color:var(--tx2);font-size:0.65rem;text-transform:uppercase;background:rgba(0,0,0,0.2);text-align:right">Subtotal</th>'
+    +'<th style="padding:8px 10px;color:#93c5fd;font-size:0.65rem;text-transform:uppercase;background:rgba(0,0,0,0.3);text-align:left">Fecha</th>'
+    +'<th style="padding:8px 10px;color:#93c5fd;font-size:0.65rem;text-transform:uppercase;background:rgba(0,0,0,0.3);text-align:left">Talla</th>'
+    +'<th style="padding:8px 10px;color:#93c5fd;font-size:0.65rem;text-transform:uppercase;background:rgba(0,0,0,0.3);text-align:right">Libras</th>'
+    +'<th style="padding:8px 10px;color:#93c5fd;font-size:0.65rem;text-transform:uppercase;background:rgba(0,0,0,0.3)"></th>'
+    +'<th style="padding:8px 10px;color:#93c5fd;font-size:0.65rem;text-transform:uppercase;background:rgba(0,0,0,0.3);text-align:left">Tarifa</th>'
+    +'<th style="padding:8px 10px;color:#93c5fd;font-size:0.65rem;text-transform:uppercase;background:rgba(0,0,0,0.3);text-align:right">Subtotal</th>'
     +'</tr></thead>'
     +'<tbody>'+rows+footer+bonusRow+'</tbody>'
     +'</table>';
@@ -1426,7 +1458,10 @@ function rmWA(){
   msg+='\n'+SEP+'\n';
   msg+=`*💵 NETO A COBRAR: $${neto.toFixed(2)}*\n`;
   if(w.cuentaBanco)msg+=`  Cta: ${w.cuentaBanco} · ${w.banco}\n`;
-  if(ov.driveUrl)msg+=`\n📄 Comprobante: ${ov.driveUrl}\n`;
+  // Link al comprobante en Drive
+  const _dUrl = ov.driveUrl || (w && w.driveUrl) || '';
+  if(_dUrl) msg+='\n📄 *Comprobante PDF:* '+_dUrl+'\n';
+  else msg+='\n_(PDF disponible al guardar en Drive)_\n';
   msg+=SEP+'\n';
   msg+='_SUDAMERICANPACK · SOPASE_';
   _waMsg=msg;
@@ -1529,8 +1564,22 @@ function openRolHist(cierreId,key){
 }
 
 function renderHist(){
-  const hist=loadHist();const el=$d('hist-body');
-  if(!hist.length){el.innerHTML='<div style="color:var(--tx3);font-size:0.85rem;padding:3rem;text-align:center;background:var(--bg2);border:1px solid var(--brd);border-radius:var(--r)">No hay cierres guardados.<br><span style="font-size:0.78rem">Genera roles y presiona <strong style="color:var(--tx)">Guardar en Sheets</strong>.</span></div>';return;}
+  const hist=loadHist();
+  const el=$d('hist-body');
+  // Apply filters
+  const qSearch = ($d('hf-search')||{value:''}).value.toLowerCase();
+  const qEstado = ($d('hf-estado')||{value:''}).value;
+  const qSector = ($d('hf-sector')||{value:''}).value.toLowerCase();
+  const qDesde  = ($d('hf-desde') ||{value:''}).value;
+  const qHasta  = ($d('hf-hasta') ||{value:''}).value;
+  // Filter cierres
+  const filtHist = hist.filter(function(c){
+    if(qDesde && c.periodo_ini && c.periodo_ini < qDesde) return false;
+    if(qHasta && c.periodo_fin && c.periodo_fin > qHasta) return false;
+    return true;
+  });
+  // Filter workers within each cierre
+  if(!filtHist.length){el.innerHTML='<div style="color:#94a3b8;font-size:0.85rem;padding:3rem;text-align:center;background:var(--bg2);border:1px solid var(--brd);border-radius:var(--r)">No hay cierres guardados.<br><span style="font-size:0.78rem">Genera roles y presiona <strong style="color:var(--tx)">Guardar en Sheets</strong>.</span></div>';return;}
   el.innerHTML=hist.map(c=>{
     const pagados=c.trabajadores.filter(r=>r.estado==='pagado').length;
     const pend=c.trabajadores.length-pagados;
@@ -1541,39 +1590,45 @@ function renderHist(){
       const key=normCed(r.cedula||'')||r.nombre;const safeKey=key.replace(/'/g,'__q__');
       const esPagado=r.estado==='pagado';
       const neto=r.neto||r.total_tu||0;
-      const driveBtn=r.drive_url?`<a href="${r.drive_url}" target="_blank" style="font-size:0.72rem;color:var(--sap3);text-decoration:none">📄</a>`:'';
+      const _safeK2=safeKey;
+      const _cid=c.id, _sk2=_safeK2;
+      if(r.drive_url){
+        driveBtn='<a href="'+r.drive_url+'" target="_blank" title="Ver PDF" style="font-size:0.75rem;color:#2563eb;padding:2px 7px;background:rgba(37,99,235,0.1);border-radius:4px;border:1px solid rgba(37,99,235,0.2);text-decoration:none">📄 PDF</a>';
+      } else {
+        driveBtn='<button title="Subir PDF a Drive" style="font-size:0.72rem;color:var(--tx3);background:none;border:1px dashed var(--brd2);border-radius:4px;padding:2px 7px;cursor:pointer" onclick="savePdfDriveFromHist(this.dataset.cid,this.dataset.sk,this)" data-cid="'+_cid+'" data-sk="'+_sk2+'">☁ PDF</button>';
+      }
       return (esPagado?'<tr class="fila-pagada">':'<tr>')
         +`<td class="vm">${r.cedula}</td>`
         +`<td><button class="btn-link" onclick="openRolHist('${c.id}','${safeKey}')">${r.nombre}</button></td>`
-        +`<td style="color:var(--tl)">${r.sector?sectEmoji(r.sector)+' '+r.sector:'—'}</td>`
-        +`<td class="vm" style="color:var(--tx2)">${r.celular||'—'}</td>`
+        +`<td style="color:#0d9488">${r.sector?sectEmoji(r.sector)+' '+r.sector:'—'}</td>`
+        +`<td class="vm" style="color:#475569">${r.celular||'—'}</td>`
         +`<td class="vm">${(r.hrsT||0).toFixed(2)}</td>`
         +`<td class="vm">${(r.lbsT||0)>0?(r.lbsT).toFixed(2):'—'}</td>`
-        +`<td class="vm" style="color:var(--tx2)">$${(r.total_emp||0).toFixed(2)}</td>`
+        +`<td class="vm" style="color:#475569">$${(r.total_emp||0).toFixed(2)}</td>`
         +`<td class="va">$${(r.total_tu||r.bruto||0).toFixed(2)}</td>`
         +`<td class="vr" style="font-size:0.75rem">${(r.total_desc||0)>0?'-$'+(r.total_desc).toFixed(2):'—'}</td>`
         +`<td class="${esPagado?'vm':'vp'}" style="font-weight:700">$${neto.toFixed(2)}</td>`
-        +`<td style="font-size:0.72rem;color:var(--tx2)">${r.cuentaBanco||r.cuenta_banco||'—'}</td>`
+        +`<td style="font-size:0.72rem;color:#475569">${r.cuentaBanco||r.cuenta_banco||'—'}</td>`
         +`<td>${driveBtn}</td>`
         +`<td><button class="bpag ${esPagado?'pagado':'pend'}" onclick="togglePago('${c.id}','${safeKey}')">${esPagado?'✓ Pagado':'● Pendiente'}</button></td>`
         +`<td><button class="wa-btn" onclick="openRolHist('${c.id}','${safeKey}')" title="Ver/WA">${WA_ICO}</button></td>`
         +'</tr>';
     }).join('');
     const hayPag=pagados>0;
-    const tuPagaRes=hayPag?`Pendiente: <strong style="color:#f59e0b;font-family:var(--mo)">$${tNetoPend.toFixed(2)}</strong> de $${tNeto.toFixed(2)}`:`A pagar: <strong style="color:#f59e0b;font-family:var(--mo)">$${tNeto.toFixed(2)}</strong>`;
+    const tuPagaRes=hayPag?`Pendiente: <strong style="color:#f59e0b;font-family:monospace">$${tNetoPend.toFixed(2)}</strong> de $${tNeto.toFixed(2)}`:`A pagar: <strong style="color:#f59e0b;font-family:monospace">$${tNeto.toFixed(2)}</strong>`;
     return`<div class="hcierre">
       <div class="hchead">
         <div><div class="hctit">📅 ${c.cargo||''} — ${c.rango}</div><div class="hcmeta">Guardado: ${c.fecha_guardado} · ${c.trabajadores.length} trabajadores · ${c.id}</div></div>
         <div style="display:flex;align-items:center;gap:8px"><button class="hcdel" onclick="delCierre('${c.id}')">🗑 Eliminar</button></div>
       </div>
       <div class="hresumen">
-        <div class="hres-item">Empresa paga: <strong style="font-family:var(--mo)">$${tE.toFixed(2)}</strong></div>
+        <div class="hres-item">Empresa paga: <strong style="font-family:monospace">$${tE.toFixed(2)}</strong></div>
         <div class="hres-item">${tuPagaRes}</div>
-        <div class="hres-right"><span style="color:var(--gr)">✓ ${pagados} pagados</span><span style="color:var(--am)">● ${pend} pendientes</span></div>
+        <div class="hres-right"><span style="color:#16a34a">✓ ${pagados} pagados</span><span style="color:#b45309">● ${pend} pendientes</span></div>
       </div>
       <div style="overflow-x:auto">
         <table class="hctable">
-          <thead><tr><th>Cédula</th><th>Nombre</th><th>Sector</th><th>Celular</th><th>Hrs</th><th>Lbs</th><th>Emp paga</th><th style="color:var(--am)">Bruto</th><th style="color:var(--re)">Desc</th><th style="color:var(--pu)">★ Neto</th><th>Cuenta</th><th>PDF</th><th>Estado</th><th>Ver/WA</th></tr></thead>
+          <thead><tr><th>Cédula</th><th>Nombre</th><th>Sector</th><th>Celular</th><th>Hrs</th><th>Lbs</th><th>Emp paga</th><th style="color:#b45309">Bruto</th><th style="color:var(--re)">Desc</th><th style="color:#7c3aed">★ Neto</th><th>Cuenta</th><th>PDF</th><th>Estado</th><th>Ver/WA</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
@@ -1651,13 +1706,13 @@ function renderFileHistory(){
   const el = $d('file-hist');
   if(!el) return;
   const hist = JSON.parse(localStorage.getItem(FILE_HIST_KEY)||'[]');
-  if(!hist.length){ el.innerHTML='<div style="color:var(--tx3);font-size:0.75rem;padding:8px">Sin archivos cargados aún</div>'; return; }
+  if(!hist.length){ el.innerHTML='<div style="color:#94a3b8;font-size:0.75rem;padding:8px">Sin archivos cargados aún</div>'; return; }
   el.innerHTML = hist.slice(0,10).map(f=>`
     <div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--brd);font-size:0.75rem">
       <span style="font-size:0.9rem">${f.tipo==='HORA'?'🕐':'📦'}</span>
       <span style="flex:1;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.nombre}</span>
-      <span class="vm" style="color:var(--tl)">${f.registros} reg</span>
-      <span style="color:var(--tx3)">${f.fecha.split(',')[0]}</span>
+      <span class="vm" style="color:#0d9488">${f.registros} reg</span>
+      <span style="color:#94a3b8">${f.fecha.split(',')[0]}</span>
     </div>`).join('');
 }
 
@@ -1700,6 +1755,77 @@ function _autoGuardarLocal(){
   if(eIdx>=0) hist[eIdx]=cierre; else hist.unshift(cierre);
   saveHistData(hist);
 }
+
+function clearHistFilters(){
+  const ids=['hf-search','hf-estado','hf-sector','hf-desde','hf-hasta'];
+  ids.forEach(function(id){const el=$d(id);if(el)el.value='';});
+  renderHist();
+}
+
+// ── Generar PDF desde historial y guardar en Drive ────────────────────────────
+async function savePdfDriveFromHist(btnOrId, safeKeyOrBtn, btn){
+  const cierreId = typeof btnOrId==='string'?btnOrId:btnOrId;
+  let safeKey = typeof safeKeyOrBtn==='string'?safeKeyOrBtn:(btn?btn.dataset.sk:'');
+  if(!safeKey && btnOrId && btnOrId.dataset) { safeKey=btnOrId.dataset.sk; btn=btnOrId; }
+  if(btn&&btn.dataset&&btn.dataset.cid) return savePdfDriveFromHist(btn.dataset.cid, btn.dataset.sk, btn);
+  safeKey = safeKey.replace(/__q__/g,"'");
+  const hist = loadHist();
+  const c = hist.find(function(x){return x.id===cierreId;});
+  if(!c){toast('Cierre no encontrado');return;}
+  const t = c.trabajadores.find(function(x){return (x.cedula||x.nombre)===safeKey;});
+  if(!t){toast('Trabajador no encontrado');return;}
+  
+  // Reconstruct worker object for buildPdfHTML
+  const w = {
+    cedula:t.cedula,nombre:t.nombre,sector:t.sector||'',celular:t.celular||'',
+    sede:t.sede||c.sede||'',cuentaBanco:t.cuentaBanco||'',banco:t.banco||'',
+    tipoCuenta:t.tipoCuenta||'',nombreProp:t.nombreProp||'',cedProp:t.cedProp||'',
+    diasTrab:t.diasTrab||0,hT:t.hrsT||0,tH:t.total_tu_h||0,
+    lT:t.lbsT||0,tP:t.total_tu_p||0,bonusAvance:t.bonusAvance||0,
+    bruto:t.bruto||t.total_tu||0,expresoDia:t.expresoDia||0,
+    descExpreso:t.desc_expreso||0,descBancario:t.desc_bancario||0,
+    lineasH:t.lineasH||[],lineasP:t.lineasP||[]
+  };
+  const ov={anticipo:t.desc_anticipo||0,multa:t.desc_multa||0,otros:t.desc_otros||0,obs:t.desc_obs||''};
+  const td=t.total_desc||0, neto=t.neto||0;
+  const anti=ov.anticipo,multa=ov.multa,otros=ov.otros,obs=ov.obs;
+  
+  if(btn){btn.textContent='⏳';btn.disabled=true;}
+  const html2=buildPdfHTML({w,ov,td,neto,cargo:c.cargo||'',sede:c.sede||'AMBAS',
+    ini:c.periodo_ini||'',fin:c.periodo_fin||'',rango:c.rango||'',anti,multa,otros,obs});
+  const wrap=$d('pdf-wrap');
+  wrap.innerHTML=html2; wrap.style.left='0'; wrap.style.zIndex='9999';
+  await new Promise(function(res){setTimeout(res,300);});
+  try{
+    const canvas=await html2canvas(wrap,{scale:2,useCORS:true,backgroundColor:'#ffffff'});
+    const imgData=canvas.toDataURL('image/png');
+    const {jsPDF}=window.jspdf;
+    const pdf=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+    const pW=pdf.internal.pageSize.getWidth(),pH=pdf.internal.pageSize.getHeight();
+    const ratio=canvas.width/canvas.height;
+    let pw2=pW,ph2=pW/ratio;
+    if(ph2>pH){ph2=pH;pw2=pH*ratio;}
+    pdf.addImage(imgData,'PNG',(pW-pw2)/2,0,pw2,ph2);
+    const filename='ROL_'+t.nombre.replace(/\s+/g,'_').substring(0,20)+'_'+c.periodo_ini+'.pdf';
+    const pdfBase64=pdf.output('datauristring').split(',')[1];
+    const folderId=$d('drive-folder').value.trim()||DRIVE_ID_DEFAULT;
+    fetch(getAPI(),{method:'POST',body:JSON.stringify({action:'save_to_drive',folder_id:folderId,pdf_base64:pdfBase64,filename})})
+      .then(function(r){return r.json();})
+      .then(function(r){
+        if(r.ok){
+          t.drive_url=r.url;
+          if(btn){btn.outerHTML='<a href="'+r.url+'" target="_blank" style="font-size:0.75rem;color:var(--sap3);text-decoration:none;padding:3px 6px;background:rgba(59,130,246,0.1);border-radius:4px;border:1px solid rgba(59,130,246,0.2)">📄 PDF</a>';}
+          const hist2=loadHist();
+          const c2=hist2.find(function(x){return x.id===cierreId;});
+          if(c2){const t2=c2.trabajadores.find(function(x){return (x.cedula||x.nombre)===safeKey;});if(t2)t2.drive_url=r.url;}
+          saveHistData(hist2);
+          toast('✓ PDF guardado en Drive');
+        }
+      }).catch(function(){toast('Error al subir a Drive');});
+  }catch(err){toast('Error PDF: '+err.message);}
+  wrap.style.left='-9999px'; wrap.style.zIndex='-1'; wrap.innerHTML='';
+}
+const DRIVE_ID_DEFAULT='1lJLZiujk5q-hBi9T1CYs1UfBU2pnMF3h';
 </script>
 </body>
 </html>
