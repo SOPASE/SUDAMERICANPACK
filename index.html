@@ -686,16 +686,22 @@ const LOGO_URI = 'data:image/png;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BS
 const DEFAULT_API = 'https://script.google.com/macros/s/AKfycbxqNzwpt0kudhrJSpYpFCO415zVtRbUdM-GXOqrEVDN3Y-VaKo0w0QJ0X4jRQHsxoGw/exec';
 // ════════════════════════════════════════════════════════════════════
 
-function getAPI(){ return DEFAULT_API; }
-function setAPI(url){ /* URL viene solo del archivo */ }
+function getAPI(){
+  // Prioridad: 1) DEFAULT_API en el archivo, 2) URL guardada en localStorage
+  return DEFAULT_API || localStorage.getItem('sap_api_url') || '';
+}
+function setAPI(url){
+  if(url && url.trim()) localStorage.setItem('sap_api_url', url.trim());
+}
 Object.defineProperty(window,'API',{get:function(){return DEFAULT_API;}});
 let   USERS = [];      // usuarios cargados desde la hoja USUARIOS
 let   CURR_USER = null; // usuario logueado
 const _nt = 'palma_gye_x7k2';
 
 // ── Cargar URL guardada al iniciar ────────────────────────────────────────────
-// URL viene directo de DEFAULT_API en el archivo
 window.addEventListener('DOMContentLoaded', function(){
+  // Auto-restore API URL: DEFAULT_API del archivo, o guardada en localStorage
+  if(DEFAULT_API) localStorage.setItem('sap_api_url', DEFAULT_API);
   renderFileHistory();
 });
 
@@ -805,15 +811,16 @@ function login(){
   if(!id){ setErr('⚠ Ingresa tu ID / cédula'); return; }
   if(!pw){ setErr('⚠ Ingresa tu contraseña');  return; }
 
-  // ── Verificar que DEFAULT_API está configurado ────────────────────────────
-  if(!DEFAULT_API || !DEFAULT_API.includes('script.google.com')){
-    setErr('⚠ Falta configurar la URL del Apps Script.<br>'
-      +'Abre el archivo <strong>index.html</strong> y edita:<br>'
-      +'<code>const DEFAULT_API = \'pega-tu-url-aqui\';</code>');
+  // ── Verificar que hay URL del script disponible ─────────────────────────
+  const apiUrl = getAPI();
+  if(!apiUrl || !apiUrl.includes('script.google')){
+    setErr('⚠ URL del Apps Script no configurada.<br>'
+      +'Edita <code>const DEFAULT_API = \'tu-url\';</code> en el index.html');
     return;
   }
+  setAPI(apiUrl); // asegurar que esté guardada en localStorage
 
-  // ── Si ya tenemos usuarios cargados, validar directo ─────────────────────
+    // ── Si ya tenemos usuarios cargados, validar directo ─────────────────────
   if(USERS.length){
     _doLogin(id, pw);
     return;
