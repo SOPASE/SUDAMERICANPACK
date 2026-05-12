@@ -7,7 +7,129 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js">
+// ── Toggle detalle de un cierre ───────────────────────────────────────────────
+function toggleDetalle(id){
+  const el=$d(id);
+  const btn=$d('btn-'+id);
+  if(!el) return;
+  const open=el.style.display==='none';
+  el.style.display=open?'block':'none';
+  if(btn) btn.textContent=(open?'▼ Ocultar Detalle':'▶ Ver Detalle')+btn.textContent.substring(btn.textContent.indexOf('('));
+}
+
+// ── Marcar todos los trabajadores de un cierre como pagados ──────────────────
+function marcarTodosPagados(cierreId){
+  if(!confirm('¿Marcar TODOS los trabajadores de este cierre como PAGADOS?')) return;
+  const hist=loadHist();
+  const c=hist.find(function(x){return x.id===cierreId;});
+  if(!c) return;
+  const fd=new Date().toLocaleString('es-EC',{timeZone:'America/Guayaquil'});
+  c.trabajadores.forEach(function(t){
+    if(t.estado!=='pagado'){ t.estado='pagado'; t.fecha_pago=fd; }
+  });
+  saveHistData(hist);
+  // Sync to Sheets in batch
+  c.trabajadores.forEach(function(t){
+    fetch(getAPI(),{method:'POST',body:JSON.stringify({
+      action:'update_estado',id_rol:cierreId,cedula:t.cedula,
+      estado:'PAGADO',fecha_pago:fd
+    })}).catch(function(){});
+  });
+  toast('✓ Todos marcados como pagados');
+  renderHist();
+}
+
+// ── Guardar cierre específico en Sheets ───────────────────────────────────────
+function guardarEnSheets(cierreId){
+  const hist=loadHist();
+  const c=hist.find(function(x){return x.id===cierreId;});
+  if(!c){toast('Cierre no encontrado');return;}
+  const btn=event.target;
+  btn.textContent='⏳ Guardando...';btn.disabled=true;
+  const rolPagos=c.trabajadores.map(function(t){
+    return{id_rol:c.id,periodo_ini:c.periodo_ini,periodo_fin:c.periodo_fin,cargo:c.cargo,sede:c.sede,
+      cedula:t.cedula,nombre:t.nombre,sector:t.sector||'',celular:t.celular||'',
+      dias_trab:t.diasTrab||0,horas:t.hrsT||0,pago_hora:t.total_tu_h||0,
+      libras:t.lbsT||0,pago_avance:t.total_tu_p||0,bruto:t.bruto||t.total_tu||0,
+      desc_expreso:t.desc_expreso||0,desc_bancario:t.desc_bancario||0,
+      desc_anticipo:t.desc_anticipo||0,desc_multa:t.desc_multa||0,
+      desc_otros:t.desc_otros||0,desc_obs:t.desc_obs||'',
+      total_desc:t.total_desc||0,neto:t.neto||0,
+      cuenta_banco:t.cuentaBanco||'',banco:t.banco||'',drive_url:t.drive_url||''};
+  });
+  fetch(getAPI(),{method:'POST',body:JSON.stringify({action:'guardar_rol',rol_pagos:rolPagos,rol_detalle:[]})})
+    .then(function(r){return r.json();})
+    .then(function(r){
+      btn.textContent='✓ Guardado';
+      c._pendiente_sheets=false;
+      saveHistData(hist);
+      toast('✓ '+rolPagos.length+' registros guardados en Sheets');
+    })
+    .catch(function(){btn.textContent='⚠ Error';btn.disabled=false;});
+}
+
+// ── Exportar Nómina como XLSX ─────────────────────────────────────────────────
+function exportarNomina(cierreId){
+  const hist=loadHist();
+  const c=hist.find(function(x){return x.id===cierreId;});
+  if(!c){toast('Cierre no encontrado');return;}
+  const tAll=c.trabajadores||[];
+
+  // Build data array matching the template format
+  const wsData=[];
+  // Row 1: title
+  wsData.push(['SUDAMERICAN PACK — ROL DE PAGOS',...Array(25).fill('')]);
+  // Row 2: info
+  wsData.push(['ROL:',c.id,'','PERÍODO:',c.rango||'','','CARGO:',c.cargo||'','','SEDE:',c.sede||'',...Array(15).fill('')]);
+  // Row 3: headers
+  wsData.push(['N°','CÉDULA','NOMBRE COMPLETO','CARGO','SEDE','SECTOR','CELULAR',
+    'DÍAS','HORAS','$ HORA','LIBRAS','$ AVANCE','BRUTO',
+    'DESC.EXPRESO','DESC.BANCARIO','DESC.ANTICIPO','DESC.MULTA','DESC.OTROS',
+    'TOTAL DESC.','NETO A PAGAR','BANCO','N° CUENTA','TITULAR','ESTADO','FECHA PAGO','OBS']);
+  // Data rows
+  tAll.forEach(function(t,i){
+    const titular=t.nombreProp||t.nombre;
+    wsData.push([
+      i+1, t.cedula, t.nombre, c.cargo||'', c.sede||'', t.sector||'', t.celular||'',
+      t.diasTrab||0,
+      +(t.hrsT||0).toFixed(2),       +(t.total_tu_h||0).toFixed(2),
+      +(t.lbsT||0).toFixed(2),       +(t.total_tu_p||0).toFixed(2),
+      +(t.bruto||t.total_tu||0).toFixed(2),
+      +(t.desc_expreso||0).toFixed(2), +(t.desc_bancario||0).toFixed(2),
+      +(t.desc_anticipo||0).toFixed(2),+(t.desc_multa||0).toFixed(2),
+      +(t.desc_otros||0).toFixed(2),   +(t.total_desc||0).toFixed(2),
+      +(t.neto||0).toFixed(2),
+      t.banco||'', t.cuentaBanco||'', titular,
+      t.estado==='pagado'?'PAGADO':'PENDIENTE', t.fecha_pago||'', t.desc_obs||''
+    ]);
+  });
+  // Totals row
+  const n=tAll.length+4; // data ends at row n
+  wsData.push(['TOTALES','','','','','','',
+    {f:'SUM(H4:H'+(n-1)+'}'},{f:'SUM(I4:I'+(n-1)+')'},
+    {f:'SUM(J4:J'+(n-1)+')'},{f:'SUM(K4:K'+(n-1)+')'},
+    {f:'SUM(L4:L'+(n-1)+')'},{f:'SUM(M4:M'+(n-1)+')'},
+    {f:'SUM(N4:N'+(n-1)+')'},{f:'SUM(O4:O'+(n-1)+')'},
+    {f:'SUM(P4:P'+(n-1)+')'},{f:'SUM(Q4:Q'+(n-1)+')'},
+    {f:'SUM(R4:R'+(n-1)+')'},{f:'SUM(S4:S'+(n-1)+')'},
+    {f:'SUM(T4:T'+(n-1)+')'},'','','','','',''
+  ]);
+
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet(wsData);
+  // Column widths
+  ws['!cols']=[{wch:4},{wch:12},{wch:32},{wch:20},{wch:8},{wch:12},{wch:12},
+    {wch:5},{wch:8},{wch:8},{wch:8},{wch:8},{wch:10},
+    {wch:10},{wch:10},{wch:10},{wch:10},{wch:10},{wch:10},{wch:11},
+    {wch:12},{wch:12},{wch:32},{wch:10},{wch:12},{wch:16}];
+  // Freeze header rows
+  ws['!freeze']={xSplit:0,ySplit:3};
+  XLSX.utils.book_append_sheet(wb,'NÓMINA',ws);
+  XLSX.writeFile(wb,'NOMINA_'+c.id+'.xlsx');
+  toast('✓ Nómina exportada: NOMINA_'+c.id+'.xlsx');
+}
+</script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -417,8 +539,8 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
     <!-- TAB 6: HISTORIAL -->
     <div id="p6" class="pane">
       <div class="hbar">
-        <div><div class="ctit">📚 Historial de cierres</div><div style="font-size:0.78rem;color:var(--tx2);margin-top:3px">PDFs guardados en Drive · Estado sincronizado con Sheets</div></div>
-        <button class="bdel-all" onclick="clearHist()">🗑 Limpiar local</button>
+        <div><div class="ctit">📚 ROLES GUARDADOS</div><div style="font-size:0.78rem;color:var(--tx2);margin-top:3px">Gestiona roles, exporta nómina, genera PDFs y envía por WhatsApp</div></div>
+        <div style="display:flex;gap:8px"><button onclick="renderHist()" style="padding:7px 14px;font-size:0.82rem;font-weight:600;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);border-radius:var(--rs);color:var(--sap3);cursor:pointer;font-family:var(--fn)">🔄 Actualizar</button><button class="bdel-all" onclick="clearHist()">🗑 Limpiar</button></div>
       </div>
       <div class="hfilt">
   <div style="display:flex;align-items:center;gap:6px">
@@ -516,8 +638,8 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
         <button class="rmod-tab on" id="rm-tab-h" onclick="rmTab('h')">⏱ HORAS <span class="rmod-badge-h" id="rm-cnt-h">0</span></button>
         <button class="rmod-tab" id="rm-tab-a" onclick="rmTab('a')">📦 AVANCE <span class="rmod-badge-h" id="rm-cnt-a">0</span></button>
       </div>
-      <div class="rmod-detail" id="rm-det-h"></div>
-      <div class="rmod-detail" id="rm-det-a" style="display:none"></div>
+      <div class="rmod-detail" id="rm-det-h" style="display:block;min-height:140px;overflow-x:auto"></div>
+      <div class="rmod-detail" id="rm-det-a" style="display:none;min-height:140px;overflow-x:auto"></div>
     </div>
     <!-- Actions -->
     <div class="rmod-actions">
@@ -899,13 +1021,8 @@ function proc(){
   });
   rPrev();rD4();rS5();
   $d('bguardar').disabled=false;
-  $d('bguardar').textContent='💾 Guardar en Sheets →';
-  // Auto-guardar en historial local para tener acceso desde Historial
-  _autoGuardarLocal();
-  toast('✓ '+det.length+' registros · Abre Historial para trabajar los roles');
-  // Ir directo al Historial
-  document.querySelectorAll('.tab')[5].click();
-  renderHist();
+  $d('bguardar').textContent='💾 Guardar en Sheets → Historial';
+  toast('✓ '+det.length+' registros procesados — revisa Vista previa y luego guarda en Sheets');
 }
 
 // ── bM: agrupa por trabajador ─────────────────────────────────────────────────
@@ -1094,112 +1211,139 @@ function rmCalc(){
 function rmTab(t){
   $d('rm-tab-h').classList.toggle('on',t==='h');
   $d('rm-tab-a').classList.toggle('on',t==='a');
-  $d('rm-det-h').style.display=t==='h'?'block':'none';
-  $d('rm-det-a').style.display=t==='a'?'block':'none';
-  // Always re-render on tab switch to ensure fresh data
-  if(t==='h'){ renderRmHoras(); }
-  else { renderRmAvance(); }
+  // Show/hide panels
+  var elH=$d('rm-det-h'), elA=$d('rm-det-a');
+  if(elH){ elH.style.display=t==='h'?'block':'none'; }
+  if(elA){ elA.style.display=t==='a'?'block':'none'; }
+  // Render content
+  if(t==='h') renderRmHoras();
+  else renderRmAvance();
 }
 
 function renderRmHoras(){
-  const w=_curRolWorker;if(!w)return;
+  const w=_curRolWorker;
   const el=$d('rm-det-h');
-  if(!w.lineasH.length){
-    el.innerHTML='<div style="padding:24px;text-align:center;color:#64748b;font-size:0.82rem">Sin registros de horas en este período</div>';
+  if(!el) return;
+  const lH=w?(w.lineasH||[]):[];
+  if(!lH.length){
+    el.innerHTML='<div style="padding:36px 20px;text-align:center">'
+      +'<div style="font-size:2rem;margin-bottom:8px">⏱</div>'
+      +'<div style="color:#93c5fd;font-size:0.88rem;font-weight:500">Sin registros de horas</div>'
+      +'<div style="color:#64748b;font-size:0.75rem;margin-top:4px">Esta persona trabajó solo en producción</div>'
+      +'</div>';
     return;
   }
-  const totalH = w.lineasH.reduce((s,l)=>s+l.cant,0);
-  const totalV = w.lineasH.reduce((s,l)=>s+(l.cant*l.tarTu),0);
-  const rows = w.lineasH.map(function(l){
-    const tk   = l.turno==='NOCTURNO'?'🌙':'☀️';
-    const ferBg= l.esHoliday?'background:rgba(167,139,250,0.08);':'';
-    const ferStr= l.esHoliday&&l.extraHora>0
-      ?'<span style="color:var(--pu);font-size:0.62rem;margin-left:3px">+$'+l.extraHora.toFixed(2)+'/h</span>':'';
-    const sede = l.sedeR||'—';
-    const ing  = l.horaIng||'—';
-    const sal  = l.horaSal||'—';
-    const sub  = (l.cant*l.tarTu).toFixed(2);
-    return '<tr style="'+ferBg+'">'
-      +'<td style="color:var(--tx2)">'+l.fecha+'</td>'
-      +'<td>'+tk+' '+l.det2+'</td>'
-      +'<td style="color:var(--tx2)">'+sede+'</td>'
-      +'<td style="color:var(--tx2);font-size:0.72rem">'+ing+'</td>'
-      +'<td style="color:var(--tx2);font-size:0.72rem">'+sal+'</td>'
-      +'<td style="font-family:var(--mo)">'+hFmt(l.cant)+'</td>'
-      +'<td style="color:var(--tl);font-family:var(--mo)">$'+l.tarTu.toFixed(2)+ferStr+'</td>'
-      +'<td style="font-weight:700;color:var(--gr);font-family:var(--mo);text-align:right">$'+sub+'</td>'
+  // Totals
+  var totalH=0,totalV=0;
+  lH.forEach(function(l){totalH+=Number(l.cant||0);totalV+=Number(l.cant||0)*Number(l.tarTu||0);});
+  // Rows
+  var rows=lH.map(function(l){
+    var tk=l.turno==='NOCTURNO'?'🌙':'☀️';
+    var bg=l.esHoliday?'background:rgba(124,58,237,0.08);':'';
+    var ferStr=l.esHoliday&&l.extraHora>0?'<span style="color:#a78bfa;font-size:0.65rem"> +$'+Number(l.extraHora).toFixed(2)+'/h</span>':'';
+    var sede=l.sedeR||l.sede||'—';
+    var ing=l.horaIng||'—';
+    var sal=l.horaSal||'—';
+    var cant=Number(l.cant||0);
+    var tarTu=Number(l.tarTu||0);
+    var sub=( cant*tarTu).toFixed(2);
+    return '<tr style="border-bottom:1px solid rgba(255,255,255,0.06);'+bg+'">'
+      +'<td style="padding:8px 10px;color:#e2e8f0;white-space:nowrap">'+l.fecha+'</td>'
+      +'<td style="padding:8px 10px;color:#e2e8f0">'+tk+' '+(l.det2||'—')+'</td>'
+      +'<td style="padding:8px 10px;color:#94a3b8;font-size:0.72rem">'+sede+'</td>'
+      +'<td style="padding:8px 10px;color:#94a3b8;font-family:monospace;font-size:0.75rem">'+ing+'</td>'
+      +'<td style="padding:8px 10px;color:#94a3b8;font-family:monospace;font-size:0.75rem">'+sal+'</td>'
+      +'<td style="padding:8px 10px;font-family:monospace;font-weight:600;color:#bfdbfe">'+hFmt(cant)+'</td>'
+      +'<td style="padding:8px 10px;color:#5eead4;font-family:monospace">$'+tarTu.toFixed(2)+ferStr+'</td>'
+      +'<td style="padding:8px 10px;font-weight:700;color:#4ade80;font-family:monospace;text-align:right">$'+sub+'</td>'
       +'</tr>';
   }).join('');
-  const footer = '<tr style="background:rgba(59,130,246,0.08);font-weight:600;border-top:2px solid rgba(59,130,246,0.3)">'
-    +'<td colspan="5" style="color:var(--sap3);font-size:0.75rem;padding:9px 10px">TOTAL HORAS</td>'
-    +'<td style="font-family:var(--mo);color:var(--am)">'+hFmt(totalH)+'</td>'
+  // Footer
+  var footer='<tr style="background:rgba(59,130,246,0.15);border-top:2px solid rgba(59,130,246,0.4)">'
+    +'<td colspan="5" style="padding:9px 10px;color:#93c5fd;font-size:0.73rem;font-weight:700;letter-spacing:0.05em">TOTAL HORAS</td>'
+    +'<td style="padding:9px 10px;font-family:monospace;color:#fbbf24;font-weight:700">'+hFmt(totalH)+'</td>'
     +'<td></td>'
-    +'<td style="font-family:var(--mo);font-weight:700;color:var(--gr);text-align:right">$'+totalV.toFixed(2)+'</td>'
+    +'<td style="padding:9px 10px;font-family:monospace;font-weight:700;color:#4ade80;text-align:right">$'+totalV.toFixed(2)+'</td>'
     +'</tr>';
-  el.innerHTML='<table style="width:100%;border-collapse:collapse;font-size:0.76rem">'
+  // TH style
+  var T='padding:8px 10px;color:#93c5fd;font-size:0.65rem;text-transform:uppercase;letter-spacing:0.05em;background:rgba(0,0,0,0.3);border-bottom:1px solid rgba(59,130,246,0.25);white-space:nowrap;text-align:left';
+  el.innerHTML='<table style="width:100%;border-collapse:collapse;font-size:0.78rem">'
     +'<thead><tr>'
-    +'<th style="padding:8px 10px;color:var(--tx2);font-size:0.65rem;text-transform:uppercase;background:rgba(0,0,0,0.2);text-align:left">Fecha</th>'
-    +'<th style="padding:8px 10px;color:var(--tx2);font-size:0.65rem;text-transform:uppercase;background:rgba(0,0,0,0.2);text-align:left">Turno / Área</th>'
-    +'<th style="padding:8px 10px;color:var(--tx2);font-size:0.65rem;text-transform:uppercase;background:rgba(0,0,0,0.2);text-align:left">Sede</th>'
-    +'<th style="padding:8px 10px;color:var(--tx2);font-size:0.65rem;text-transform:uppercase;background:rgba(0,0,0,0.2);text-align:left">Ingreso</th>'
-    +'<th style="padding:8px 10px;color:var(--tx2);font-size:0.65rem;text-transform:uppercase;background:rgba(0,0,0,0.2);text-align:left">Salida</th>'
-    +'<th style="padding:8px 10px;color:var(--tx2);font-size:0.65rem;text-transform:uppercase;background:rgba(0,0,0,0.2);text-align:left">Horas</th>'
-    +'<th style="padding:8px 10px;color:var(--tx2);font-size:0.65rem;text-transform:uppercase;background:rgba(0,0,0,0.2);text-align:left">Tarifa</th>'
-    +'<th style="padding:8px 10px;color:var(--tx2);font-size:0.65rem;text-transform:uppercase;background:rgba(0,0,0,0.2);text-align:right">Subtotal</th>'
+    +'<th style="'+T+'">Fecha</th>'
+    +'<th style="'+T+'">Turno/Área</th>'
+    +'<th style="'+T+'">Sede</th>'
+    +'<th style="'+T+'">Ingreso</th>'
+    +'<th style="'+T+'">Salida</th>'
+    +'<th style="'+T+'">Horas</th>'
+    +'<th style="'+T+'">Tarifa</th>'
+    +'<th style="'+T+';text-align:right">Subtotal</th>'
     +'</tr></thead>'
     +'<tbody>'+rows+footer+'</tbody>'
     +'</table>';
 }
 
 function renderRmAvance(){
-  const w=_curRolWorker;if(!w)return;
+  const w=_curRolWorker;
   const el=$d('rm-det-a');
-  if(!w.lineasP.length){
-    el.innerHTML='<div style="padding:24px;text-align:center;color:#64748b;font-size:0.82rem">Sin registros de producción en este período</div>';
+  if(!el) return;
+  const lP=w?(w.lineasP||[]):[];
+  if(!lP.length){
+    el.innerHTML='<div style="padding:36px 20px;text-align:center">'
+      +'<div style="font-size:2rem;margin-bottom:8px">📦</div>'
+      +'<div style="color:#93c5fd;font-size:0.88rem;font-weight:500">Sin registros de producción</div>'
+      +'<div style="color:#64748b;font-size:0.75rem;margin-top:4px">Esta persona trabajó solo por horas</div>'
+      +'</div>';
     return;
   }
-  const totalLb = w.lineasP.reduce((s,l)=>s+l.cant,0);
-  const totalV  = w.lineasP.reduce((s,l)=>s+(l.cant*l.tarTu),0);
-  const rows = w.lineasP.map(function(l){
-    const tk    = l.turno==='NOCTURNO'?'🌙':'☀️';
-    const ferBg = l.esHoliday?'background:rgba(167,139,250,0.08);':'';
-    const ferStr= l.esHoliday
-      ?'<span style="color:var(--pu);font-size:0.62rem;margin-left:3px">🎉</span>':'';
-    const sub   = (l.cant*l.tarTu).toFixed(2);
-    return '<tr style="'+ferBg+'">'
-      +'<td style="color:var(--tx2)">'+l.fecha+'</td>'
-      +'<td>'+tk+' '+l.det2+'</td>'
-      +'<td style="font-family:var(--mo);text-align:right">'+l.cant.toFixed(3)+'</td>'
-      +'<td style="color:var(--tx3)">lb</td>'
-      +'<td style="color:var(--tl);font-family:var(--mo)">$'+l.tarTu.toFixed(4)+'</td>'
-      +'<td style="font-weight:700;color:var(--gr);font-family:var(--mo);text-align:right">$'+sub+ferStr+'</td>'
+  // Totals
+  var totalLb=0,totalV=0;
+  lP.forEach(function(l){totalLb+=Number(l.cant||0);totalV+=Number(l.cant||0)*Number(l.tarTu||0);});
+  // Rows
+  var rows=lP.map(function(l){
+    var tk=l.turno==='NOCTURNO'?'🌙':'☀️';
+    var bg=l.esHoliday?'background:rgba(124,58,237,0.08);':'';
+    var ferStr=l.esHoliday?'<span style="color:#a78bfa;font-size:0.65rem"> 🎉</span>':'';
+    var cant=Number(l.cant||0);
+    var tarTu=Number(l.tarTu||0);
+    var sub=(cant*tarTu).toFixed(2);
+    return '<tr style="border-bottom:1px solid rgba(255,255,255,0.06);'+bg+'">'
+      +'<td style="padding:8px 10px;color:#e2e8f0;white-space:nowrap">'+l.fecha+'</td>'
+      +'<td style="padding:8px 10px;color:#e2e8f0">'+tk+' '+(l.det2||'—')+'</td>'
+      +'<td style="padding:8px 10px;font-family:monospace;color:#bfdbfe;font-weight:600;text-align:right">'+cant.toFixed(3)+'</td>'
+      +'<td style="padding:8px 10px;color:#64748b;font-size:0.72rem">lb</td>'
+      +'<td style="padding:8px 10px;color:#5eead4;font-family:monospace">$'+tarTu.toFixed(4)+'</td>'
+      +'<td style="padding:8px 10px;font-weight:700;color:#4ade80;font-family:monospace;text-align:right">$'+sub+ferStr+'</td>'
       +'</tr>';
   }).join('');
-  const footer = '<tr style="background:rgba(59,130,246,0.08);font-weight:600;border-top:2px solid rgba(59,130,246,0.3)">'
-    +'<td colspan="2" style="color:#93c5fd;font-size:0.75rem;padding:9px 10px;letter-spacing:0.05em">TOTAL PRODUCCIÓN</td>'
-    +'<td style="font-family:monospace;color:#fbbf24;font-weight:700;text-align:right;padding:8px 10px">'+totalLb.toFixed(2)+'</td>'
-    +'<td style="color:var(--tx3)">lb</td>'
+  // Bonus feriados
+  var bonus=w.bonusAvance||0;
+  var bonusRow=bonus>0?'<tr style="background:rgba(124,58,237,0.1)">'
+    +'<td colspan="5" style="padding:7px 10px;color:#a78bfa;font-size:0.78rem">🎉 Bonus feriados avance</td>'
+    +'<td style="padding:7px 10px;font-family:monospace;color:#a78bfa;font-weight:600;text-align:right">+$'+bonus.toFixed(2)+'</td>'
+    +'</tr>':'';
+  // Footer
+  var footer='<tr style="background:rgba(59,130,246,0.15);border-top:2px solid rgba(59,130,246,0.4)">'
+    +'<td colspan="2" style="padding:9px 10px;color:#93c5fd;font-size:0.73rem;font-weight:700;letter-spacing:0.05em">TOTAL PRODUCCIÓN</td>'
+    +'<td style="padding:9px 10px;font-family:monospace;color:#fbbf24;font-weight:700;text-align:right">'+totalLb.toFixed(2)+'</td>'
+    +'<td style="padding:9px 10px;color:#64748b;font-size:0.72rem">lb</td>'
     +'<td></td>'
-    +'<td style="font-family:var(--mo);font-weight:700;color:var(--gr);text-align:right">$'+totalV.toFixed(2)+'</td>'
+    +'<td style="padding:9px 10px;font-family:monospace;font-weight:700;color:#4ade80;text-align:right">$'+totalV.toFixed(2)+'</td>'
     +'</tr>';
-  // Bonus feriados si aplica
-  const bonusRow = w.bonusAvance>0
-    ?'<tr style="background:rgba(167,139,250,0.08)">'
-      +'<td colspan="5" style="color:var(--pu);font-size:0.75rem;padding:7px 10px">🎉 Bonus feriados avance</td>'
-      +'<td style="font-family:var(--mo);color:var(--pu);font-weight:600;text-align:right">+$'+w.bonusAvance.toFixed(2)+'</td>'
-      +'</tr>':'';
-  el.innerHTML='<table style="width:100%;border-collapse:collapse;font-size:0.76rem">'
+  // TH style
+  var T='padding:8px 10px;color:#93c5fd;font-size:0.65rem;text-transform:uppercase;letter-spacing:0.05em;background:rgba(0,0,0,0.3);border-bottom:1px solid rgba(59,130,246,0.25);white-space:nowrap;text-align:left';
+  el.innerHTML='<table style="width:100%;border-collapse:collapse;font-size:0.78rem">'
     +'<thead><tr>'
-    +'<th style="padding:8px 10px;color:#93c5fd;font-size:0.65rem;text-transform:uppercase;background:rgba(0,0,0,0.3);text-align:left">Fecha</th>'
-    +'<th style="padding:8px 10px;color:#93c5fd;font-size:0.65rem;text-transform:uppercase;background:rgba(0,0,0,0.3);text-align:left">Talla</th>'
-    +'<th style="padding:8px 10px;color:#93c5fd;font-size:0.65rem;text-transform:uppercase;background:rgba(0,0,0,0.3);text-align:right">Libras</th>'
-    +'<th style="padding:8px 10px;color:#93c5fd;font-size:0.65rem;text-transform:uppercase;background:rgba(0,0,0,0.3)"></th>'
-    +'<th style="padding:8px 10px;color:#93c5fd;font-size:0.65rem;text-transform:uppercase;background:rgba(0,0,0,0.3);text-align:left">Tarifa</th>'
-    +'<th style="padding:8px 10px;color:#93c5fd;font-size:0.65rem;text-transform:uppercase;background:rgba(0,0,0,0.3);text-align:right">Subtotal</th>'
+    +'<th style="'+T+'">Fecha</th>'
+    +'<th style="'+T+'">Talla/Proceso</th>'
+    +'<th style="'+T+';text-align:right">Libras</th>'
+    +'<th style="'+T+'"></th>'
+    +'<th style="'+T+'">Tarifa/lb</th>'
+    +'<th style="'+T+';text-align:right">Subtotal</th>'
     +'</tr></thead>'
     +'<tbody>'+rows+footer+bonusRow+'</tbody>'
     +'</table>';
 }
+
 
 function rmSave(){
   if(!_curRolWorker)return;
@@ -1498,7 +1642,7 @@ function guardarCierre(){
   const hist=loadHist();const eIdx=hist.findIndex(x=>x.id===idRol);if(eIdx>=0)hist[eIdx]=cierre;else hist.unshift(cierre);saveHistData(hist);
   const btn=$d('bguardar');btn.disabled=true;btn.textContent='Guardando...';
   fetch(getAPI(),{method:'POST',body:JSON.stringify({action:'guardar_rol',rol_pagos:rolPagos,rol_detalle:rolDetalle})})
-    .then(r=>r.json()).then(r=>{btn.textContent=r.ok?`✓ Guardado (${r.saved})`:'✓ Local';toast(r.ok?`✓ ${r.saved} registros en Sheets`:'Error en Sheets. Guardado local.');document.querySelectorAll('.tab')[5].click();renderHist();}).catch(()=>{btn.textContent='✓ Local';toast('Sin conexión. Guardado local.');document.querySelectorAll('.tab')[5].click();renderHist();});
+    .then(r=>r.json()).then(function(r){btn.textContent=r.ok?('✓ Guardado ('+r.saved+')'):'✓ Local';toast(r.ok?('✓ '+r.saved+' en Sheets · Revisa Historial'):'Error en Sheets. Guardado local.');document.querySelectorAll('.tab')[5].click();renderHist();}).catch(function(){btn.textContent='✓ Local';toast('Sin conexión. Guardado local.');document.querySelectorAll('.tab')[5].click();renderHist();});
 }
 
 // ── Historial ─────────────────────────────────────────────────────────────────
@@ -1534,7 +1678,10 @@ function openRolHist(cierreId,key){
     diasTrab:t.dias_trab||0,hT:t.hrsT||0,tH:t.total_tu_h||0,eH:t.total_emp_h||0,
     lT:t.lbsT||0,tP:t.total_tu_p||0,eP:t.total_emp_p||0,
     bonusAvance:t.bonusAvance||0,bruto:t.total_tu||t.bruto||0,
-    lineasH:t.lineasH||[],lineasP:t.lineasP||[]
+    lineasH:t.lineasH||t.lH||[],
+    lineasP:t.lineasP||t.lP||[],
+    nombreProp:t.nombreProp||'',cedProp:t.cedProp||'',
+    tipoCuenta:t.tipoCuenta||''
   };
   const ov=getOv(t.cedula);
   ov.anticipo=t.desc_anticipo||0;ov.multa=t.desc_multa||0;ov.otros=t.desc_otros||0;ov.obs=t.desc_obs||'';ov.driveUrl=t.drive_url||'';
@@ -1559,7 +1706,13 @@ function openRolHist(cierreId,key){
     $d('rm-banc-val').textContent=_curRolWorker.descBancario>0?'-$'+_curRolWorker.descBancario.toFixed(2):'Sin desc.';
   } else $d('rm-banc-row').style.display='none';
   $d('rm-anticipo').value=ov.anticipo||0;$d('rm-multa').value=ov.multa||0;$d('rm-otros').value=ov.otros||0;$d('rm-obs').value=ov.obs||'';
-  $d('rm-cnt-h').textContent=_curRolWorker.lineasH.length;$d('rm-cnt-a').textContent=_curRolWorker.lineasP.length;
+  const _lh=(_curRolWorker.lineasH||[]).length;
+  const _la=(_curRolWorker.lineasP||[]).length;
+  $d('rm-cnt-h').textContent=_lh;
+  $d('rm-cnt-a').textContent=_la;
+  // Auto-switch to AVANCE tab if no hours
+  if(_lh===0 && _la>0) rmTab('a');
+  else rmTab('h');
   rmTab('h');rmCalc();$d('rmod').classList.add('show');
 }
 
@@ -1567,265 +1720,121 @@ function renderHist(){
   const hist=loadHist();
   const el=$d('hist-body');
   // Apply filters
-  const qSearch = ($d('hf-search')||{value:''}).value.toLowerCase();
-  const qEstado = ($d('hf-estado')||{value:''}).value;
-  const qSector = ($d('hf-sector')||{value:''}).value.toLowerCase();
-  const qDesde  = ($d('hf-desde') ||{value:''}).value;
-  const qHasta  = ($d('hf-hasta') ||{value:''}).value;
-  // Filter cierres
+  const qSearch  = ($d('hf-search') ||{value:''}).value.toLowerCase();
+  const qEstado  = ($d('hf-estado') ||{value:''}).value;
+  const qSector  = ($d('hf-sector') ||{value:''}).value.toLowerCase();
+  const qDesde   = ($d('hf-desde')  ||{value:''}).value;
+  const qHasta   = ($d('hf-hasta')  ||{value:''}).value;
+
   const filtHist = hist.filter(function(c){
     if(qDesde && c.periodo_ini && c.periodo_ini < qDesde) return false;
     if(qHasta && c.periodo_fin && c.periodo_fin > qHasta) return false;
     return true;
   });
-  // Filter workers within each cierre
-  if(!filtHist.length){el.innerHTML='<div style="color:#94a3b8;font-size:0.85rem;padding:3rem;text-align:center;background:var(--bg2);border:1px solid var(--brd);border-radius:var(--r)">No hay cierres guardados.<br><span style="font-size:0.78rem">Genera roles y presiona <strong style="color:var(--tx)">Guardar en Sheets</strong>.</span></div>';return;}
-  el.innerHTML=hist.map(c=>{
-    const pagados=c.trabajadores.filter(r=>r.estado==='pagado').length;
-    const pend=c.trabajadores.length-pagados;
-    const tE=c.trabajadores.reduce((s,r)=>s+(r.total_emp||0),0);
-    const tNeto=c.trabajadores.reduce((s,r)=>s+(r.neto||r.total_tu||0),0);
-    const tNetoPend=c.trabajadores.filter(r=>r.estado!=='pagado').reduce((s,r)=>s+(r.neto||r.total_tu||0),0);
-    const rows=c.trabajadores.map(r=>{
-      const key=normCed(r.cedula||'')||r.nombre;const safeKey=key.replace(/'/g,'__q__');
-      const esPagado=r.estado==='pagado';
-      const neto=r.neto||r.total_tu||0;
-      const _safeK2=safeKey;
-      const _cid=c.id, _sk2=_safeK2;
-      if(r.drive_url){
-        driveBtn='<a href="'+r.drive_url+'" target="_blank" title="Ver PDF" style="font-size:0.75rem;color:#2563eb;padding:2px 7px;background:rgba(37,99,235,0.1);border-radius:4px;border:1px solid rgba(37,99,235,0.2);text-decoration:none">📄 PDF</a>';
-      } else {
-        driveBtn='<button title="Subir PDF a Drive" style="font-size:0.72rem;color:var(--tx3);background:none;border:1px dashed var(--brd2);border-radius:4px;padding:2px 7px;cursor:pointer" onclick="savePdfDriveFromHist(this.dataset.cid,this.dataset.sk,this)" data-cid="'+_cid+'" data-sk="'+_sk2+'">☁ PDF</button>';
-      }
-      return (esPagado?'<tr class="fila-pagada">':'<tr>')
-        +`<td class="vm">${r.cedula}</td>`
-        +`<td><button class="btn-link" onclick="openRolHist('${c.id}','${safeKey}')">${r.nombre}</button></td>`
-        +`<td style="color:#0d9488">${r.sector?sectEmoji(r.sector)+' '+r.sector:'—'}</td>`
-        +`<td class="vm" style="color:#475569">${r.celular||'—'}</td>`
-        +`<td class="vm">${(r.hrsT||0).toFixed(2)}</td>`
-        +`<td class="vm">${(r.lbsT||0)>0?(r.lbsT).toFixed(2):'—'}</td>`
-        +`<td class="vm" style="color:#475569">$${(r.total_emp||0).toFixed(2)}</td>`
-        +`<td class="va">$${(r.total_tu||r.bruto||0).toFixed(2)}</td>`
-        +`<td class="vr" style="font-size:0.75rem">${(r.total_desc||0)>0?'-$'+(r.total_desc).toFixed(2):'—'}</td>`
-        +`<td class="${esPagado?'vm':'vp'}" style="font-weight:700">$${neto.toFixed(2)}</td>`
-        +`<td style="font-size:0.72rem;color:#475569">${r.cuentaBanco||r.cuenta_banco||'—'}</td>`
-        +`<td>${driveBtn}</td>`
-        +`<td><button class="bpag ${esPagado?'pagado':'pend'}" onclick="togglePago('${c.id}','${safeKey}')">${esPagado?'✓ Pagado':'● Pendiente'}</button></td>`
-        +`<td><button class="wa-btn" onclick="openRolHist('${c.id}','${safeKey}')" title="Ver/WA">${WA_ICO}</button></td>`
+
+  if(!filtHist.length){
+    el.innerHTML='<div style="color:var(--tx3);font-size:0.85rem;padding:3rem;text-align:center;background:var(--bg2);border:1px solid var(--brd);border-radius:var(--r)">No hay roles guardados.<br><span style="font-size:0.78rem">Genera roles en <strong style="color:var(--tx)">Vista previa</strong> y guarda en Sheets.</span></div>';
+    const cc=$d('hf-count');if(cc)cc.textContent='0 cierres';
+    return;
+  }
+
+  let totalC=0;
+  el.innerHTML=filtHist.map(function(c){
+    // Filter workers by search/sector/estado
+    const tAll=c.trabajadores||[];
+    const tFilt=tAll.filter(function(r){
+      if(qSearch&&!r.nombre.toLowerCase().includes(qSearch)&&!(r.cedula||'').includes(qSearch)) return false;
+      if(qEstado&&r.estado!==qEstado) return false;
+      if(qSector&&!(r.sector||'').toLowerCase().includes(qSector)) return false;
+      return true;
+    });
+    if(!tFilt.length&&(qSearch||qEstado||qSector)) return '';
+    totalC++;
+
+    // Aggregate stats
+    const pagados = tAll.filter(function(r){return r.estado==='pagado';}).length;
+    const pend    = tAll.length - pagados;
+    const tBruto  = tAll.reduce(function(s,r){return s+(r.bruto||r.total_tu||0);},0);
+    const tDesc   = tAll.reduce(function(s,r){return s+(r.total_desc||0);},0);
+    const tNeto   = tAll.reduce(function(s,r){return s+(r.neto||0);},0);
+    const tNetoPend = tAll.filter(function(r){return r.estado!=='pagado';}).reduce(function(s,r){return s+(r.neto||0);},0);
+
+    // Status badge
+    let badge, badgeCls;
+    if(pagados===0)         { badge='● Pendiente'; badgeCls='bpag pend'; }
+    else if(pagados===tAll.length){ badge='✓ Completado'; badgeCls='bpag pagado'; }
+    else                   { badge='◑ Parcial '+pagados+'/'+tAll.length; badgeCls='bpag'; }
+
+    // Save date short
+    const fd=(c.fecha_guardado||'').split(',')[0];
+
+    // Worker rows (hidden by default, shown with Ver Detalle)
+    const workerRows=tFilt.map(function(r){
+      const sk=String(r.cedula||r.nombre||'').replace(/'/g,'__q__');
+      const esPag=r.estado==='pagado';
+      const neto=r.neto||0;
+      return (esPag?'<tr style="opacity:0.5;background:rgba(34,197,94,0.03)">':'<tr>')
+        +'<td class="vm" style="font-size:0.72rem;color:var(--tx2)">'+r.cedula+'</td>'
+        +'<td><button class="btn-link" onclick="openRolHist(\''+c.id+'\',\''+sk+'\')">'+r.nombre+'</button>'
+        +(r.sector?'<br><span style="font-size:0.62rem;color:var(--tl)">'+sectEmoji(r.sector)+' '+r.sector+'</span>':'')+'</td>'
+        +'<td style="font-size:0.72rem;color:var(--tx2)">'+((r.celular||'').substring(0,10)||'—')+'</td>'
+        +'<td class="vm">'+((r.diasTrab||0))+'d</td>'
+        +'<td class="vm va">$'+(r.bruto||r.total_tu||0).toFixed(2)+'</td>'
+        +'<td class="vm vr" style="font-size:0.75rem">'+(r.total_desc>0?'-$'+r.total_desc.toFixed(2):'—')+'</td>'
+        +'<td class="vm vp" style="font-weight:700">$'+neto.toFixed(2)+'</td>'
+        +'<td style="font-size:0.7rem;color:var(--tx2)">'+((r.cuentaBanco||'').substring(0,12)||(r.banco?r.banco.substring(0,8):'—'))+'</td>'
+        +'<td><button class="bpag '+(esPag?'pagado':'pend')+'" onclick="togglePago(\''+c.id+'\',\''+sk+'\')">'+(esPag?'✓ Pagado':'● Pendiente')+'</button></td>'
+        +'<td>'
+          +(r.drive_url
+            ?'<a href="'+r.drive_url+'" target="_blank" style="font-size:0.72rem;color:var(--sap3);padding:2px 6px;background:rgba(59,130,246,0.1);border-radius:4px;border:1px solid rgba(59,130,246,0.2);text-decoration:none">📄</a>'
+            :'<button data-cid="'+c.id+'" data-sk="'+sk+'" onclick="savePdfDriveFromHist(this.dataset.cid,this.dataset.sk,this)" style="font-size:0.7rem;color:var(--tx3);background:none;border:1px dashed var(--brd2);border-radius:4px;padding:2px 6px;cursor:pointer">☁</button>')
+          +'</td>'
         +'</tr>';
     }).join('');
-    const hayPag=pagados>0;
-    const tuPagaRes=hayPag?`Pendiente: <strong style="color:#f59e0b;font-family:monospace">$${tNetoPend.toFixed(2)}</strong> de $${tNeto.toFixed(2)}`:`A pagar: <strong style="color:#f59e0b;font-family:monospace">$${tNeto.toFixed(2)}</strong>`;
-    return`<div class="hcierre">
-      <div class="hchead">
-        <div><div class="hctit">📅 ${c.cargo||''} — ${c.rango}</div><div class="hcmeta">Guardado: ${c.fecha_guardado} · ${c.trabajadores.length} trabajadores · ${c.id}</div></div>
-        <div style="display:flex;align-items:center;gap:8px"><button class="hcdel" onclick="delCierre('${c.id}')">🗑 Eliminar</button></div>
-      </div>
-      <div class="hresumen">
-        <div class="hres-item">Empresa paga: <strong style="font-family:monospace">$${tE.toFixed(2)}</strong></div>
-        <div class="hres-item">${tuPagaRes}</div>
-        <div class="hres-right"><span style="color:#16a34a">✓ ${pagados} pagados</span><span style="color:#b45309">● ${pend} pendientes</span></div>
-      </div>
-      <div style="overflow-x:auto">
-        <table class="hctable">
-          <thead><tr><th>Cédula</th><th>Nombre</th><th>Sector</th><th>Celular</th><th>Hrs</th><th>Lbs</th><th>Emp paga</th><th style="color:#b45309">Bruto</th><th style="color:var(--re)">Desc</th><th style="color:#7c3aed">★ Neto</th><th>Cuenta</th><th>PDF</th><th>Estado</th><th>Ver/WA</th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>
-    </div>`;
-  }).join('');
+
+    const detailId='det-'+c.id.substring(0,20).replace(/[^a-zA-Z0-9]/g,'_');
+
+    return '<div class="hcierre" style="margin-bottom:14px">'
+      // ── Header ──
+      +'<div style="display:flex;align-items:flex-start;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--brd)">'
+        +'<div style="flex:1;min-width:0">'
+          +'<div style="font-size:0.95rem;font-weight:700;color:var(--tx);margin-bottom:4px">'+c.cargo+'</div>'
+          +'<div style="font-size:0.72rem;color:var(--tx2);display:flex;align-items:center;gap:14px;flex-wrap:wrap">'
+            +'<span>📅 '+(c.rango||c.id)+'</span>'
+            +'<span style="color:var(--sap3)">👥 '+tAll.length+' trabajadores</span>'
+            +'<span>🏢 '+(c.sede||'—')+'</span>'
+            +'<span style="color:var(--tx3)">'+fd+'</span>'
+          +'</div>'
+        +'</div>'
+        +'<button class="bpag '+badgeCls+'" style="flex-shrink:0;margin-left:12px">'+badge+'</button>'
+      +'</div>'
+      // ── Summary ──
+      +'<div style="display:flex;gap:0;border-bottom:1px solid var(--brd);font-size:0.8rem">'
+        +'<div style="flex:1;padding:10px 16px;border-right:1px solid var(--brd)"><div style="color:var(--tx3);font-size:0.65rem;text-transform:uppercase;margin-bottom:2px">Bruto</div><div style="font-family:var(--mo);font-weight:600;color:var(--am)">$'+tBruto.toFixed(2)+'</div></div>'
+        +'<div style="flex:1;padding:10px 16px;border-right:1px solid var(--brd)"><div style="color:var(--tx3);font-size:0.65rem;text-transform:uppercase;margin-bottom:2px">Desc</div><div style="font-family:var(--mo);font-weight:600;color:var(--re)">-$'+tDesc.toFixed(2)+'</div></div>'
+        +'<div style="flex:1;padding:10px 16px;border-right:1px solid var(--brd)"><div style="color:var(--tx3);font-size:0.65rem;text-transform:uppercase;margin-bottom:2px">Neto</div><div style="font-family:var(--mo);font-weight:700;color:var(--pu)">$'+tNetoPend.toFixed(2)+'</div></div>'
+        +'<div style="flex:1;padding:10px 16px;border-right:1px solid var(--brd)"><div style="color:var(--tx3);font-size:0.65rem;text-transform:uppercase;margin-bottom:2px">Pendientes</div><div style="font-family:var(--mo);color:var(--am)">'+pend+'</div></div>'
+        +'<div style="flex:1;padding:10px 16px"><div style="color:var(--tx3);font-size:0.65rem;text-transform:uppercase;margin-bottom:2px">Pagados</div><div style="font-family:var(--mo);color:var(--gr)">'+pagados+'</div></div>'
+      +'</div>'
+      // ── Actions ──
+      +'<div style="display:flex;gap:8px;padding:12px 16px;border-bottom:1px solid var(--brd);background:var(--bg3)">'
+        +'<button onclick="toggleDetalle(\''+detailId+'\')" style="flex:2;padding:9px 14px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.25);border-radius:var(--rs);color:var(--sap3);font-family:var(--fn);font-size:0.82rem;font-weight:600;cursor:pointer" id="btn-'+detailId+'">▶ Ver Detalle ('+tFilt.length+')</button>'
+        +'<button onclick="exportarNomina(\''+c.id+'\')" style="flex:2;padding:9px 14px;background:rgba(20,184,166,0.1);border:1px solid rgba(20,184,166,0.25);border-radius:var(--rs);color:var(--tl);font-family:var(--fn);font-size:0.82rem;font-weight:600;cursor:pointer">📊 Exportar Nómina</button>'
+        +'<button onclick="marcarTodosPagados(\''+c.id+'\')" style="flex:1;padding:9px 14px;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);border-radius:var(--rs);color:var(--gr);font-family:var(--fn);font-size:0.82rem;cursor:pointer">✓ Pagado</button>'
+        +'<button onclick="guardarEnSheets(\''+c.id+'\')" style="flex:1;padding:9px 14px;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.2);border-radius:var(--rs);color:var(--sap3);font-family:var(--fn);font-size:0.82rem;cursor:pointer">☁ Sheets</button>'
+        +'<button onclick="delCierre(\''+c.id+'\')" style="flex:1;padding:9px 14px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:var(--rs);color:var(--re);font-family:var(--fn);font-size:0.82rem;cursor:pointer">🗑 Eliminar</button>'
+      +'</div>'
+      // ── Worker Detail (hidden) ──
+      +'<div id="'+detailId+'" style="display:none;overflow-x:auto">'
+        +'<table class="hctable">'
+          +'<thead><tr><th>Cédula</th><th>Nombre</th><th>Celular</th><th>Días</th><th>Bruto</th><th>Desc</th><th style="color:var(--pu)">Neto</th><th>Cuenta</th><th>Estado</th><th>PDF</th></tr></thead>'
+          +'<tbody>'+workerRows+'</tbody>'
+        +'</table>'
+      +'</div>'
+    +'</div>';
+  }).filter(Boolean).join('');
+
+  const cc=$d('hf-count');if(cc)cc.textContent=totalC+' cierres';
 }
 
-// ── CSV ────────────────────────────────────────────────────────────────────────
-function toCSV(rows,h){return[h,...rows].map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');}
-function dlCSV(c,f){const b=new Blob(['\uFEFF'+c],{type:'text/csv;charset=utf-8;'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=f;a.click();}
-function expR(){if(!det.length){toast('Genera primero');return;}const list=bM();const h=['Cedula','Nombre','Sector','Celular','Dias','Hrs','Pago_Hrs','Lbs','Pago_Prod','Bruto','Desc_Expreso','Desc_Bancario','Neto','Cuenta','Banco'];dlCSV(toCSV(list.map(w=>{const ov=getOv(w.cedula);const td=+(w.descExpreso+w.descBancario+ov.anticipo+ov.multa+ov.otros).toFixed(2);return[w.cedula,w.nombre,w.sector,w.celular,w.diasTrab,w.hT.toFixed(2),w.tH.toFixed(2),w.lT.toFixed(2),w.tP.toFixed(2),w.bruto.toFixed(2),w.descExpreso.toFixed(2),w.descBancario.toFixed(2),(w.bruto-td).toFixed(2),w.cuentaBanco,w.banco];}),h),'roles.csv');toast('✓ CSV descargado');}
-function expD(){if(!det.length){toast('Genera primero');return;}const data=gFilt();const h=['Fecha','Cedula','Nombre','Turno','Tipo','Detalle','Cant','Unidad','Tarifa','TuPagas','EmpPaga','Dif','Feriado'];dlCSV(toCSV(data.map(r=>[r.fecha,r.cedula,r.nombre,r.turno,r.tipo,r.det2,r.cant.toFixed(2),r.ud,r.tarTu.toFixed(4),r.valTu.toFixed(2),r.valEmp.toFixed(2),r.dif.toFixed(2),r.esHoliday?'SI':'NO']),h),'detalle.csv');toast('✓ CSV');}
-
-// ── Inicializar ROL_PAGOS y ROL_DETALLE desde el front ──────────────────────
-
-
-// ── Crear ROL_PAGOS y ROL_DETALLE en Sheets ──────────────────────────────────
-function initSheets(btn){
-  const st=$d('init-st');
-  if(btn){btn.disabled=true;btn.textContent='⏳ Creando...';}
-  fetch(getAPI(),{method:'POST',body:JSON.stringify({action:'init_sheets'})})
-    .then(r=>r.json())
-    .then(r=>{
-      if(r.ok){
-        if(btn){btn.textContent='✓ Listas';btn.style.color='var(--gr)';}
-        st.style.color='var(--gr)';st.textContent=(r.msgs||[]).join(' · ');
-        toast('✓ ROL_PAGOS y ROL_DETALLE creadas en Google Sheets');
-      } else {
-        if(btn){btn.textContent='⚠ Error';btn.disabled=false;}
-        st.style.color='var(--re)';st.textContent=r.error||'Error';
-      }
-    })
-    .catch(err=>{
-      if(btn){btn.textContent='⚠ Sin conexión';btn.disabled=false;}
-      st.style.color='var(--re)';st.textContent=err.message;
-    });
-}
-
-
-// ── Guardar tarifa editada en Sheet ──────────────────────────────────────────
-function saveTarifa(sheet, idx, dKey, dVal, nKey, nVal){
-  const payload = {sheet, idx};
-  // Build the payload based on which value changed
-  if(dVal!==null){ payload.diurno = parseFloat(dVal)||0; }
-  if(nVal!==null){ payload.nocturno = parseFloat(nVal)||0; }
-  // If only one value sent, get the other from TH/TP
-  if(sheet==='TARIFA_HORA'){
-    const r=TH.find(x=>x.idx===idx);
-    if(r){ payload.diurno=payload.diurno!==undefined?payload.diurno:r.diurno;
-           payload.nocturno=payload.nocturno!==undefined?payload.nocturno:r.nocturno;
-           if(dVal!==null) r.diurno=payload.diurno;
-           if(nVal!==null) r.nocturno=payload.nocturno; }
-  } else {
-    const r=TP.find(x=>x.idx===idx);
-    if(r){ payload.diurno=payload.diurno!==undefined?payload.diurno:r.diurno;
-           payload.nocturno=payload.nocturno!==undefined?payload.nocturno:r.nocturno;
-           if(dVal!==null) r.diurno=payload.diurno;
-           if(nVal!==null) r.nocturno=payload.nocturno; }
-  }
-  fetch(getAPI(),{method:'POST',body:JSON.stringify(payload)})
-    .then(r=>r.json())
-    .then(r=>{ if(r.ok) toast('✓ Tarifa guardada en Sheet'); })
-    .catch(()=>toast('⚠ Error guardando tarifa'));
-}
-
-// ── Historial de archivos subidos ────────────────────────────────────────────
-const FILE_HIST_KEY='sap_files_v1';
-function saveFileHistory(tipo, nombre, registros){
-  const hist = JSON.parse(localStorage.getItem(FILE_HIST_KEY)||'[]');
-  hist.unshift({tipo, nombre, registros, fecha: new Date().toLocaleString('es-EC',{timeZone:'America/Guayaquil'})});
-  localStorage.setItem(FILE_HIST_KEY, JSON.stringify(hist.slice(0,50)));
-  renderFileHistory();
-}
-function renderFileHistory(){
-  const el = $d('file-hist');
-  if(!el) return;
-  const hist = JSON.parse(localStorage.getItem(FILE_HIST_KEY)||'[]');
-  if(!hist.length){ el.innerHTML='<div style="color:#94a3b8;font-size:0.75rem;padding:8px">Sin archivos cargados aún</div>'; return; }
-  el.innerHTML = hist.slice(0,10).map(f=>`
-    <div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--brd);font-size:0.75rem">
-      <span style="font-size:0.9rem">${f.tipo==='HORA'?'🕐':'📦'}</span>
-      <span style="flex:1;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.nombre}</span>
-      <span class="vm" style="color:#0d9488">${f.registros} reg</span>
-      <span style="color:#94a3b8">${f.fecha.split(',')[0]}</span>
-    </div>`).join('');
-}
-
-// ── Auto-guardar en historial local al generar roles ─────────────────────────
-function _autoGuardarLocal(){
-  if(!det.length) return;
-  const list   = bM();
-  const {ini,fin,rango} = getDateRangeISO();
-  const cargo  = $d('cargo-input').value.trim()||'ROL';
-  const sede   = $d('sede-input').value.trim()||'AMBAS';
-  const idRol  = buildIdRol(cargo,ini,fin);
-  const cierre = {
-    id:idRol, rango, cargo, sede, periodo_ini:ini, periodo_fin:fin,
-    fecha_guardado:new Date().toLocaleString('es-EC',{timeZone:'America/Guayaquil'}),
-    _pendiente_sheets: true, // marcar para guardar en Sheets después
-    trabajadores: list.map(function(w){
-      const ov=getOv(w.cedula);
-      const td=+(w.descExpreso+w.descBancario+ov.anticipo+ov.multa+ov.otros).toFixed(2);
-      const neto=+(w.bruto-td).toFixed(2);
-      return {
-        cedula:w.cedula,nombre:w.nombre,sector:w.sector,celular:w.celular,sede:w.sede,
-        cuentaBanco:w.cuentaBanco,banco:w.banco,tipoCuenta:w.tipoCuenta,
-        nombreProp:w.nombreProp,cedProp:w.cedProp,
-        diasTrab:w.diasTrab,hrsT:+w.hT.toFixed(2),lbsT:+w.lT.toFixed(2),
-        total_emp_h:+w.eH.toFixed(2),total_tu_h:+w.tH.toFixed(2),
-        total_emp_p:+w.eP.toFixed(2),total_tu_p:+w.tP.toFixed(2),
-        bonusAvance:w.bonusAvance,
-        total_emp:+(w.eH+w.eP).toFixed(2),total_tu:w.bruto,bruto:w.bruto,
-        desc_expreso:w.descExpreso,desc_bancario:w.descBancario,
-        desc_anticipo:ov.anticipo,desc_multa:ov.multa,desc_otros:ov.otros,desc_obs:ov.obs,
-        total_desc:td,neto,
-        margen:+(w.eH+w.eP-w.bruto).toFixed(2),
-        lineasH:w.lineasH,lineasP:w.lineasP,estado:'pendiente',
-        expresoDia:w.expresoDia
-      };
-    })
-  };
-  const hist=loadHist();
-  const eIdx=hist.findIndex(function(x){return x.id===idRol;});
-  if(eIdx>=0) hist[eIdx]=cierre; else hist.unshift(cierre);
-  saveHistData(hist);
-}
-
-function clearHistFilters(){
-  const ids=['hf-search','hf-estado','hf-sector','hf-desde','hf-hasta'];
-  ids.forEach(function(id){const el=$d(id);if(el)el.value='';});
-  renderHist();
-}
-
-// ── Generar PDF desde historial y guardar en Drive ────────────────────────────
-async function savePdfDriveFromHist(btnOrId, safeKeyOrBtn, btn){
-  const cierreId = typeof btnOrId==='string'?btnOrId:btnOrId;
-  let safeKey = typeof safeKeyOrBtn==='string'?safeKeyOrBtn:(btn?btn.dataset.sk:'');
-  if(!safeKey && btnOrId && btnOrId.dataset) { safeKey=btnOrId.dataset.sk; btn=btnOrId; }
-  if(btn&&btn.dataset&&btn.dataset.cid) return savePdfDriveFromHist(btn.dataset.cid, btn.dataset.sk, btn);
-  safeKey = safeKey.replace(/__q__/g,"'");
-  const hist = loadHist();
-  const c = hist.find(function(x){return x.id===cierreId;});
-  if(!c){toast('Cierre no encontrado');return;}
-  const t = c.trabajadores.find(function(x){return (x.cedula||x.nombre)===safeKey;});
-  if(!t){toast('Trabajador no encontrado');return;}
-  
-  // Reconstruct worker object for buildPdfHTML
-  const w = {
-    cedula:t.cedula,nombre:t.nombre,sector:t.sector||'',celular:t.celular||'',
-    sede:t.sede||c.sede||'',cuentaBanco:t.cuentaBanco||'',banco:t.banco||'',
-    tipoCuenta:t.tipoCuenta||'',nombreProp:t.nombreProp||'',cedProp:t.cedProp||'',
-    diasTrab:t.diasTrab||0,hT:t.hrsT||0,tH:t.total_tu_h||0,
-    lT:t.lbsT||0,tP:t.total_tu_p||0,bonusAvance:t.bonusAvance||0,
-    bruto:t.bruto||t.total_tu||0,expresoDia:t.expresoDia||0,
-    descExpreso:t.desc_expreso||0,descBancario:t.desc_bancario||0,
-    lineasH:t.lineasH||[],lineasP:t.lineasP||[]
-  };
-  const ov={anticipo:t.desc_anticipo||0,multa:t.desc_multa||0,otros:t.desc_otros||0,obs:t.desc_obs||''};
-  const td=t.total_desc||0, neto=t.neto||0;
-  const anti=ov.anticipo,multa=ov.multa,otros=ov.otros,obs=ov.obs;
-  
-  if(btn){btn.textContent='⏳';btn.disabled=true;}
-  const html2=buildPdfHTML({w,ov,td,neto,cargo:c.cargo||'',sede:c.sede||'AMBAS',
-    ini:c.periodo_ini||'',fin:c.periodo_fin||'',rango:c.rango||'',anti,multa,otros,obs});
-  const wrap=$d('pdf-wrap');
-  wrap.innerHTML=html2; wrap.style.left='0'; wrap.style.zIndex='9999';
-  await new Promise(function(res){setTimeout(res,300);});
-  try{
-    const canvas=await html2canvas(wrap,{scale:2,useCORS:true,backgroundColor:'#ffffff'});
-    const imgData=canvas.toDataURL('image/png');
-    const {jsPDF}=window.jspdf;
-    const pdf=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
-    const pW=pdf.internal.pageSize.getWidth(),pH=pdf.internal.pageSize.getHeight();
-    const ratio=canvas.width/canvas.height;
-    let pw2=pW,ph2=pW/ratio;
-    if(ph2>pH){ph2=pH;pw2=pH*ratio;}
-    pdf.addImage(imgData,'PNG',(pW-pw2)/2,0,pw2,ph2);
-    const filename='ROL_'+t.nombre.replace(/\s+/g,'_').substring(0,20)+'_'+c.periodo_ini+'.pdf';
-    const pdfBase64=pdf.output('datauristring').split(',')[1];
-    const folderId=$d('drive-folder').value.trim()||DRIVE_ID_DEFAULT;
-    fetch(getAPI(),{method:'POST',body:JSON.stringify({action:'save_to_drive',folder_id:folderId,pdf_base64:pdfBase64,filename})})
-      .then(function(r){return r.json();})
-      .then(function(r){
-        if(r.ok){
-          t.drive_url=r.url;
-          if(btn){btn.outerHTML='<a href="'+r.url+'" target="_blank" style="font-size:0.75rem;color:var(--sap3);text-decoration:none;padding:3px 6px;background:rgba(59,130,246,0.1);border-radius:4px;border:1px solid rgba(59,130,246,0.2)">📄 PDF</a>';}
-          const hist2=loadHist();
-          const c2=hist2.find(function(x){return x.id===cierreId;});
-          if(c2){const t2=c2.trabajadores.find(function(x){return (x.cedula||x.nombre)===safeKey;});if(t2)t2.drive_url=r.url;}
-          saveHistData(hist2);
-          toast('✓ PDF guardado en Drive');
-        }
-      }).catch(function(){toast('Error al subir a Drive');});
-  }catch(err){toast('Error PDF: '+err.message);}
-  wrap.style.left='-9999px'; wrap.style.zIndex='-1'; wrap.innerHTML='';
-}
-const DRIVE_ID_DEFAULT='1lJLZiujk5q-hBi9T1CYs1UfBU2pnMF3h';
-</script>
-</body>
-</html>
+>
