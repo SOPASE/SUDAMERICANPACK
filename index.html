@@ -580,6 +580,11 @@ const _nt = 'palma_gye_x7k2';
 window.addEventListener('DOMContentLoaded', function(){
   // Auto-restore API URL: DEFAULT_API del archivo, o guardada en localStorage
   if(DEFAULT_API) localStorage.setItem('sap_api_url', DEFAULT_API);
+  // FIX: aviso si no hay URL configurada en ningún lado
+  if(!DEFAULT_API && !localStorage.getItem('sap_api_url')){
+    const le=$d('le');
+    if(le){le.style.color='#f59e0b';le.innerHTML='⚠ URL del Apps Script no configurada.<br><small style="color:#64748b">Edita <code>const DEFAULT_API = \'tu-url\';</code> en el index.html</small>';}
+  }
   renderFileHistory();
 });
 
@@ -866,10 +871,12 @@ function lf(input,tipo){
 }
 function checkReady(){
   const ok=loaded.h||loaded.a;
-  $d('bp').disabled=!(ok&&tarifasOk);
+  // FIX: el botón se habilita con al menos un archivo cargado, sin importar si tarifasOk
+  $d('bp').disabled=!ok;
   if(loaded.h&&loaded.a&&tarifasOk)$d('sl').innerHTML='<span class="sgo">✓ Todo listo — presiona Generar roles</span>';
-  else if(ok&&!tarifasOk)$d('sl').innerHTML='<span class="swn">Esperando tarifas del Sheet...</span>';
-  else if(ok)$d('sl').innerHTML='<span class="swn">⚡ Archivo cargado. Puedes procesar ya.</span>';
+  else if(loaded.h&&loaded.a&&!tarifasOk)$d('sl').innerHTML='<span class="swn">⚠ Ambos archivos listos. Tarifas no cargadas — se usarán valores por defecto.</span>';
+  else if(ok&&tarifasOk)$d('sl').innerHTML='<span class="sgo">✓ Archivo cargado y tarifas OK — puedes generar.</span>';
+  else if(ok&&!tarifasOk)$d('sl').innerHTML='<span class="swn">⚡ Archivo cargado. Tarifas pendientes — puedes procesar ya con valores por defecto.</span>';
 }
 
 // ── Proceso central ───────────────────────────────────────────────────────────
@@ -1325,9 +1332,9 @@ function buildPdfHTML({w,ov,td,neto,cargo,sede,ini,fin,rango,anti,multa,otros,ob
   // horas table rows
   let hRows='';
   if(w.lineasH.length){
-    hRows=w.lineasH.map(l=>{
+    hRows=w.lineasH.map((l,rowIdx)=>{
       const sub=+(l.cant*l.tarTu).toFixed(2);
-      return`<tr style="background:${hRows.length%2?rowAlt:'#fff'}">
+      return`<tr style="background:${rowIdx%2?rowAlt:'#fff'}">
         <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;color:#1e293b">${l.fecha}</td>
         <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;color:#1e293b">${l.turno==='NOCTURNO'?'NOCTURNO':'DIURNO'}</td>
         <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;color:#1e293b">${l.det2}</td>
