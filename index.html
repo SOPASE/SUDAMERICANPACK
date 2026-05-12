@@ -589,7 +589,7 @@ window.addEventListener('DOMContentLoaded', function(){
 });
 
 // ── Estado global ────────────────────────────────────────────────────────────
-let TH=[],TP=[],TF=[],FE=[],IA=[],LIST=[];
+let TH=[],TP=[],TF=[],FE=[],IA=[],LIST=[],LIST_MAP={},IA_MAP={};
 let dH=[],dA=[],det=[];
 let loaded={h:false,a:false},tarifasOk=false;
 let _rq='',fTp='',fTr='';
@@ -648,18 +648,13 @@ function getExpresoDia(sector){
   const f=TF.find(t=>t.sector===String(sector).toUpperCase().trim());
   return f?f.valor_dia:0;
 }
-function getInfoAd(ced){const c=normCed(ced);return IA.find(i=>normCed(i.cedula)===c)||null;}
+function getInfoAd(ced){var c=normCed(ced);return c?(IA_MAP[c]||null):null;}
 function getListado(cedula){
-  const c=normCed(cedula);
+  if(!cedula) return null;
+  var c=normCed(cedula);
   if(!c) return null;
-  // 1. Match exact cedula normalizada
-  let r=LIST.find(l=>normCed(l.cedula)===c);
-  if(!r){
-    // 2. Match sin ceros iniciales
-    const cS=c.replace(/^0+/,'');
-    r=LIST.find(l=>normCed(l.cedula).replace(/^0+/,'')===cS);
-  }
-  return r||null;
+  // O(1) Map lookup instead of O(n) find
+  return LIST_MAP[c] || LIST_MAP[c.replace(/^0+/,'')] || null;
 }
 function getOv(cedula){cedula=normCed(cedula);if(!overrides[cedula])overrides[cedula]={anticipo:0,multa:0,otros:0,obs:'',driveUrl:''};return overrides[cedula];}
 
@@ -675,7 +670,7 @@ function cargarTarifas(){
   if(!_url){setApiSt('err','⚠ No hay URL del Apps Script configurada. Cierra sesión y agrégala en el login.');return;}
   fetch(_url).then(r=>r.json()).then(data=>{
     TH=data.tarifa_hora||[];TP=data.talla_prod||[];TF=data.tarifa_expreso||[];
-    FE=data.feriados||[];IA=data.info_adicional||[];LIST=data.listado||[];
+    FE=data.feriados||[];IA=data.info_adicional||[];IA_MAP={};IA.forEach(function(ia){var c=normCed(ia.cedula);if(c)IA_MAP[c]=ia;});LIST=data.listado||[];LIST_MAP={};LIST.forEach(function(l){var c=normCed(l.cedula);if(c){LIST_MAP[c]=l;var s=c.replace(/^0+/,"");if(s&&!LIST_MAP[s])LIST_MAP[s]=l;}});
     tarifasOk=true;
     if(data.drive_folder_id){const _df=$d('drive-folder');if(_df&&!_df.value)_df.value=data.drive_folder_id;}
     setApiSt('ok',`${TH.length} áreas · ${TP.length} tallas · ${FE.length} feriados · ${LIST.length} listado · ${IA.length} adicional`);
@@ -733,6 +728,9 @@ function login(){
       TF   = data.tarifa_expreso || [];
       FE   = data.feriados       || [];
       IA   = data.info_adicional || [];
+      IA_MAP={};IA.forEach(function(ia){var c=normCed(ia.cedula);if(c)IA_MAP[c]=ia;});
+      IA_MAP={};
+      IA.forEach(function(ia){var c=normCed(ia.cedula);if(c)IA_MAP[c]=ia;});
       LIST = data.listado        || [];
       USERS= (data.usuarios||[]).filter(function(u){ return u.activo; });
       if(data.drive_folder_id){
@@ -809,76 +807,42 @@ function st(id,el){document.querySelectorAll('.pane').forEach(p=>p.classList.rem
 // ── Render tarifas ────────────────────────────────────────────────────────────
 function renderTar(){
   const head='<div class="trow" style="background:transparent;padding:4px 10px;margin-bottom:2px"><div class="tkey"></div><span class="turno-label turno-d" style="min-width:80px;text-align:center">D Diurno</span><div class="tsep"></div><span class="turno-label turno-n" style="min-width:80px;text-align:center">N Nocturno</span></div>';
-  $d('gth').innerHTML=TH.length?head+TH.map(function(r){
-    var i=r.idx;
-    return '<div class="trow">'
-      +'<div class="tkey">'+r.area+'</div>'
-      +'<div style="display:flex;align-items:center;gap:4px">'
-        +'<span style="font-size:0.65rem;color:var(--tx3)">D</span>'
-        +'<input data-sh="TARIFA_HORA" data-ix="'+i+'" data-fd="diurno" type="number" step="0.01"'
-          +' value="'+Number(r.diurno).toFixed(2)+'"'
-          +' style="width:68px;padding:4px 6px;background:var(--bg2);border:1px solid var(--brd2);border-radius:4px;color:var(--am);font-family:var(--mo);font-size:0.82rem;text-align:right;outline:none"'
-          +' onchange="svTar(this)">'
-      +'</div>'
-      +'<div class="tsep"></div>'
-      +'<div style="display:flex;align-items:center;gap:4px">'
-        +'<span style="font-size:0.65rem;color:var(--tx3)">N</span>'
-        +'<input data-sh="TARIFA_HORA" data-ix="'+i+'" data-fd="nocturno" type="number" step="0.01"'
-          +' value="'+Number(r.nocturno).toFixed(2)+'"'
-          +' style="width:68px;padding:4px 6px;background:var(--bg2);border:1px solid var(--brd2);border-radius:4px;color:#a5b4fc;font-family:var(--mo);font-size:0.82rem;text-align:right;outline:none"'
-          +' onchange="svTar(this)">'
-      +'</div>'
-      +'</div>';
-  }).join(''):'<div style="color:var(--tx3);padding:1rem">Sin datos</div>';
-  $d('gtp').innerHTML=TP.length?head+TP.map(function(r){
-    var i=r.idx;
-    return '<div class="trow">'
-      +'<div class="tkey">'+r.proceso+'<br><span style="font-size:0.65rem;color:var(--tx3)">'+(r.tipo||'')+'</span></div>'
-      +'<div style="display:flex;align-items:center;gap:4px">'
-        +'<span style="font-size:0.65rem;color:var(--tx3)">D</span>'
-        +'<input data-sh="TALLA_PROD" data-ix="'+i+'" data-fd="diurno" type="number" step="0.001"'
-          +' value="'+Number(r.diurno).toFixed(3)+'"'
-          +' style="width:72px;padding:4px 6px;background:var(--bg2);border:1px solid var(--brd2);border-radius:4px;color:var(--am);font-family:var(--mo);font-size:0.82rem;text-align:right;outline:none"'
-          +' onchange="svTar(this)">'
-      +'</div>'
-      +'<div class="tsep"></div>'
-      +'<div style="display:flex;align-items:center;gap:4px">'
-        +'<span style="font-size:0.65rem;color:var(--tx3)">N</span>'
-        +'<input data-sh="TALLA_PROD" data-ix="'+i+'" data-fd="nocturno" type="number" step="0.001"'
-          +' value="'+Number(r.nocturno).toFixed(3)+'"'
-          +' style="width:72px;padding:4px 6px;background:var(--bg2);border:1px solid var(--brd2);border-radius:4px;color:#a5b4fc;font-family:var(--mo);font-size:0.82rem;text-align:right;outline:none"'
-          +' onchange="svTar(this)">'
-      +'</div>'
-      +'</div>';
-  }).join(''):'<div style="color:var(--tx3);padding:1rem">Sin datos</div>';
-  $d('gfer').innerHTML=FE.length?FE.map(function(f,fi){
-    return '<div class="fer-row" style="flex-wrap:wrap;gap:6px">'
-      +'<span class="fer-date">'+f.fecha+'</span>'
-      +'<span class="fer-name" style="flex:1">'+(f.nombre||'Feriado')+'</span>'
-      +'<label style="font-size:0.65rem;color:var(--tx2)">$/h</label>'
-      +'<input data-fi="'+fi+'" data-fd="extra_hora_pg" type="number" step="0.01" min="0"'
-        +' value="'+(+(f.extra_hora_pg||0)).toFixed(2)+'"'
-        +' style="width:58px;padding:3px 5px;background:var(--bg2);border:1px solid var(--brd2);border-radius:4px;color:var(--am);font-family:var(--mo);font-size:0.78rem;text-align:right;outline:none"'
-        +' onchange="svFer(this)">'
-      +'<label style="font-size:0.65rem;color:var(--tx2)">$/día avance</label>'
-      +'<input data-fi="'+fi+'" data-fd="extra_avance_pg" type="number" step="0.01" min="0"'
-        +' value="'+(+(f.extra_avance_pg||0)).toFixed(2)+'"'
-        +' style="width:58px;padding:3px 5px;background:var(--bg2);border:1px solid var(--brd2);border-radius:4px;color:var(--pu);font-family:var(--mo);font-size:0.78rem;text-align:right;outline:none"'
-        +' onchange="svFer(this)">'
-      +'</div>';
-  }).join(''):'<div style="color:var(--tx3)">Sin feriados</div>';
-  $d('gexp').innerHTML=TF.length?TF.map(function(t,ti){
-    return '<div class="exp-row">'
-      +'<span class="exp-sector">'+sectEmoji(t.sector)+' <strong>'+t.sector+'</strong></span>'
-      +'<div style="display:flex;align-items:center;gap:6px">'
-        +'<label style="font-size:0.65rem;color:var(--tx2)">$/día</label>'
-        +'<input data-ti="'+ti+'" type="number" step="0.01" min="0"'
-          +' value="'+(+(t.valor_dia||0)).toFixed(2)+'"'
-          +' style="width:68px;padding:3px 6px;background:var(--bg2);border:1px solid var(--brd2);border-radius:4px;color:var(--re);font-family:var(--mo);font-size:0.82rem;text-align:right;outline:none"'
-          +' onchange="svExp(this)">'
-      +'</div>'
-      +'</div>';
-  }).join(''):'<div style="color:var(--tx3)">Sin tarifas expreso</div>';
+  $d('gth').innerHTML=TH.length?head+TH.map(r=>`<div class="trow">
+    <div class="tkey">${r.area}</div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <span style="font-size:0.65rem;color:var(--tx3)">D</span>
+      <input class="t-edit" type="number" step="0.01" value="${Number(r.diurno).toFixed(2)}"
+        style="width:68px;padding:4px 6px;background:var(--bg2);border:1px solid var(--brd2);border-radius:4px;color:var(--am);font-family:var(--mo);font-size:0.82rem;text-align:right;outline:none"
+        onchange="saveTarifa('TARIFA_HORA',${r.idx},'diurno',this.value,'nocturno',null)"
+        title="Tarifa diurna — haz clic para editar"/>
+    </div>
+    <div class="tsep"></div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <span style="font-size:0.65rem;color:var(--tx3)">N</span>
+      <input class="t-edit" type="number" step="0.01" value="${Number(r.nocturno).toFixed(2)}"
+        style="width:68px;padding:4px 6px;background:var(--bg2);border:1px solid var(--brd2);border-radius:4px;color:#a5b4fc;font-family:var(--mo);font-size:0.82rem;text-align:right;outline:none"
+        onchange="saveTarifa('TARIFA_HORA',${r.idx},null,null,'nocturno',this.value)"
+        title="Tarifa nocturna — haz clic para editar"/>
+    </div>
+  </div>`).join(''):'<div style="color:var(--tx3);padding:1rem">Sin datos</div>';
+  $d('gtp').innerHTML=TP.length?head+TP.map(r=>`<div class="trow">
+    <div class="tkey">${r.proceso}<br><span style="font-size:0.65rem;color:var(--tx3)">${r.tipo||''}</span></div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <span style="font-size:0.65rem;color:var(--tx3)">D</span>
+      <input class="t-edit" type="number" step="0.001" value="${Number(r.diurno).toFixed(3)}"
+        style="width:72px;padding:4px 6px;background:var(--bg2);border:1px solid var(--brd2);border-radius:4px;color:var(--am);font-family:var(--mo);font-size:0.82rem;text-align:right;outline:none"
+        onchange="saveTarifa('TALLA_PROD',${r.idx},'diurno',this.value,'nocturno',null)"/>
+    </div>
+    <div class="tsep"></div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <span style="font-size:0.65rem;color:var(--tx3)">N</span>
+      <input class="t-edit" type="number" step="0.001" value="${Number(r.nocturno).toFixed(3)}"
+        style="width:72px;padding:4px 6px;background:var(--bg2);border:1px solid var(--brd2);border-radius:4px;color:#a5b4fc;font-family:var(--mo);font-size:0.82rem;text-align:right;outline:none"
+        onchange="saveTarifa('TALLA_PROD',${r.idx},null,null,'nocturno',this.value)"/>
+    </div>
+  </div>`).join(''):'<div style="color:var(--tx3);padding:1rem">Sin datos</div>';
+  $d('gfer').innerHTML=FE.length?FE.map(f=>`<div class="fer-row"><span class="fer-date">${f.fecha}</span><span class="fer-name">${f.nombre}</span><span class="fer-extra">+$${f.extra_hora_pg}/h &nbsp;·&nbsp; +$${f.extra_avance_pg}/día</span></div>`).join(''):'<div style="color:var(--tx3)">Sin feriados</div>';
+  $d('gexp').innerHTML=TF.length?TF.map(t=>`<div class="exp-row"><span class="exp-sector">${sectEmoji(t.sector)} <strong>${t.sector||'(sin nombre)'}</strong></span><span class="exp-valor" style="color:var(--re)">-$${(t.valor_dia||0).toFixed(2)}/día</span></div>`).join(''):'<div style="color:var(--tx3)">Sin tarifas expreso</div>';
 }
 
 // ── Carga archivos ────────────────────────────────────────────────────────────
@@ -927,6 +891,10 @@ function checkReady(){
 // ── Proceso central ───────────────────────────────────────────────────────────
 function proc(){
   det=[];overrides={};
+  var bguEl2=$d('bguardar'),bpEl2=$d('bp');
+  // Disable buttons during processing
+  if(bguEl2) bguEl2.disabled=true;
+  // Process hora records
   dH.forEach(r=>{
     const hrs=gn(r['HORAS TRABAJADAS']||r['HORAS_TRABAJADAS']||r['HORAS']);
     const area=r['AREA']||r['ÁREA']||'';
@@ -957,20 +925,22 @@ function proc(){
     const cedula=normCed(r['CÉDULA']||r['CEDULA']||r['CÉDULA/RUC']||'');
     det.push({fecha:fdt(r['FECHA']),fechaSort:fSrt,cedula,nombre:String(r['NOMBRE']||'').trim(),turno:t,tipo:'PROD',det2:talla,cant:lbs,ud:'lb',tarBase:tarTu,extraHora:0,tarTu,valTu,valEmp,dif:+(valEmp-valTu).toFixed(4),esHoliday:!!feriado,extraAvance,horaIng:'',horaSal:'',sedeR:r['SEDE']||r['CIUDAD']||'',cliente:'',tipoProceso:r['TIPO_PROCESO']||r['TIPO PROCESO']||'',completo:1});
   });
-  rPrev();rD4();rS5();
-  $d('bguardar').disabled=false;
-  $d('bguardar').textContent='💾 Guardar en Sheets → Historial';
-  // FIX: ir automáticamente a Vista previa y mostrar mensaje claro
-  const workers=bM().length;
-  // Restaurar botón Generar
-  const bpBtn=$d('bp');
-  if(bpBtn){bpBtn.disabled=false;bpBtn.textContent='⚡ Generar roles consolidados';}
-  const tabPrev=document.querySelectorAll('.tab')[2];
+  // ── Habilitar guardar SIEMPRE (antes de renders por si alguno falla) ──────
+  var bguEl=$d('bguardar');
+  if(bguEl){bguEl.disabled=false;bguEl.textContent='💾 Guardar en Sheets';}
+  var bpEl=$d('bp');
+  if(bpEl){bpEl.disabled=false;bpEl.textContent='⚡ Generar roles consolidados';}
+  // ── Render tabs ────────────────────────────────────────────────────────
+  try{rPrev();}catch(e){console.error('rPrev error:',e);}
+  try{rD4();}catch(e){console.error('rD4 error:',e);}
+  try{rS5();}catch(e){console.error('rS5 error:',e);}
+  // ── Ir a Vista previa ─────────────────────────────────────────────────
+  var tabPrev=document.querySelectorAll('.tab')[2];
   if(tabPrev) tabPrev.click();
-  // Mensaje más visible y duradero
-  const sl=$d('sl');
-  if(sl) sl.innerHTML='<span class="sgo">✓ '+workers+' trabajadores · '+det.length+' registros — Revisa Vista previa y presiona Guardar en Sheets</span>';
-  toast('✓ Roles generados: '+workers+' trabajadores · '+det.length+' registros');
+  var workers=Object.keys(det.reduce(function(m,r){m[normCed(r.cedula)||r.nombre]=1;return m;},{})).length;
+  var sl=$d('sl');
+  if(sl) sl.innerHTML='<span class="sgo">✓ '+workers+' trabajadores · '+det.length+' registros</span>';
+  toast('✓ Roles: '+workers+' trabajadores · '+det.length+' registros');
 }
 
 // ── bM: agrupa por trabajador ─────────────────────────────────────────────────
@@ -1618,7 +1588,7 @@ function guardarCierre(){
   });
   const rolDetalle=det.map(r=>({id_rol:idRol,cedula:r.cedula,tipo:r.tipo==='HORA'?'HORA':'AVANCE',fecha:r.fecha,fecha_sort:r.fechaSort,turno:r.turno,area:r.det2,hora_ing:r.horaIng,hora_sal:r.horaSal,horas:r.tipo==='HORA'?+r.cant.toFixed(2):0,tarifa:+r.tarTu.toFixed(4),pago:+r.valTu.toFixed(2),completo:1,peso:r.tipo==='PROD'?+r.cant.toFixed(2):0,unid:r.ud,tipo_proceso:r.tipoProceso||'',cliente:r.cliente||'',sede:r.sedeR||sede}));
   // localStorage
-  const cierre={id:idRol,rango,fecha_guardado:new Date().toLocaleString('es-EC',{timeZone:'America/Guayaquil'}),cargo,sede,periodo_ini:ini,periodo_fin:fin,trabajadores:rolPagos.map((rp,i)=>{const w=list[i];const ov=getOv(w.cedula);return{...rp,id_rol:undefined,total_emp_h:+w.eH.toFixed(2),total_tu_h:+w.tH.toFixed(2),total_emp_p:+w.eP.toFixed(2),total_tu_p:+w.tP.toFixed(2),bonusAvance:w.bonusAvance,total_emp:+(w.eH+w.eP).toFixed(2),total_tu:w.bruto,bruto:w.bruto,hrsT:+w.hT.toFixed(2),lbsT:+w.lT.toFixed(2),nombreProp:w.nombreProp||'',cedProp:w.cedProp||'',tipoCuenta:w.tipoCuenta||'',sede:w.sede||'',expresoDia:w.expresoDia||0,margen:+(w.eH+w.eP-w.bruto).toFixed(2),lineasH:w.lineasH,lineasP:w.lineasP,estado:'pendiente'}})};
+  const cierre={id:idRol,rango,fecha_guardado:new Date().toLocaleString('es-EC',{timeZone:'America/Guayaquil'}),cargo,sede,periodo_ini:ini,periodo_fin:fin,trabajadores:rolPagos.map((rp,i)=>{const w=list[i];const ov=getOv(w.cedula);return{...rp,id_rol:undefined,total_emp_h:+w.eH.toFixed(2),total_tu_h:+w.tH.toFixed(2),total_emp_p:+w.eP.toFixed(2),total_tu_p:+w.tP.toFixed(2),bonusAvance:w.bonusAvance,total_emp:+(w.eH+w.eP).toFixed(2),total_tu:w.bruto,margen:+(w.eH+w.eP-w.bruto).toFixed(2),lineasH:w.lineasH,lineasP:w.lineasP,estado:'pendiente'};})};
   const hist=loadHist();const eIdx=hist.findIndex(x=>x.id===idRol);if(eIdx>=0)hist[eIdx]=cierre;else hist.unshift(cierre);saveHistData(hist);
   const btn=$d('bguardar');btn.disabled=true;btn.textContent='Guardando...';
   fetch(getAPI(),{method:'POST',body:JSON.stringify({action:'guardar_rol',rol_pagos:rolPagos,rol_detalle:rolDetalle})})
@@ -1848,63 +1818,7 @@ function marcarTodosPagados(cierreId){
 }
 
 // ── Guardar cierre específico en Sheets ───────────────────────────────────────
-function guardarEnSheets(cierreId){
-  var hist=loadHist(),c=hist.find(function(x){return x.id===cierreId;});
-  if(!c){toast('Cierre no encontrado');return;}
-  if(!getAPI()||!getAPI().includes('script.google')){toast('⚠ DEFAULT_API no configurado');return;}
-  var btn=event.target; btn.textContent='⏳'; btn.disabled=true;
-  /* ROL_PAGOS */
-  var rp=c.trabajadores.map(function(t){return{
-    id_rol:c.id,periodo_ini:c.periodo_ini,periodo_fin:c.periodo_fin,
-    cargo:c.cargo||'',sede:c.sede||'',
-    cedula:t.cedula,nombre:t.nombre,sector:t.sector||'',celular:t.celular||'',
-    dias_trab:t.diasTrab||0,
-    horas:+(t.hrsT||0).toFixed(2), pago_hora:+(t.total_tu_h||0).toFixed(2),
-    libras:+(t.lbsT||0).toFixed(2), pago_avance:+(t.total_tu_p||0).toFixed(2),
-    bruto:+(t.bruto||t.total_tu||0).toFixed(2),
-    desc_expreso:+(t.desc_expreso||0).toFixed(2),
-    desc_bancario:+(t.desc_bancario||0).toFixed(2),
-    desc_anticipo:+(t.desc_anticipo||0).toFixed(2),
-    desc_multa:+(t.desc_multa||0).toFixed(2),
-    desc_otros:+(t.desc_otros||0).toFixed(2),
-    desc_obs:t.desc_obs||'',
-    total_desc:+(t.total_desc||0).toFixed(2),
-    neto:+(t.neto||0).toFixed(2),
-    cuenta_banco:t.cuentaBanco||t.cuenta_banco||'',
-    banco:t.banco||'', drive_url:t.drive_url||''};});
-  /* ROL_DETALLE desde lineasH + lineasP guardadas */
-  var rd=[];
-  c.trabajadores.forEach(function(t){
-    (t.lineasH||[]).forEach(function(l){rd.push({
-      id_rol:c.id,cedula:t.cedula,tipo:'HORA',
-      fecha:l.fecha||'',fecha_sort:l.fechaSort||'',turno:l.turno||'',
-      area:l.det2||'',hora_ing:l.horaIng||'',hora_sal:l.horaSal||'',
-      horas:+(l.cant||0).toFixed(2),tarifa:+(l.tarTu||0).toFixed(4),
-      pago:+(l.valTu||0).toFixed(2),completo:1,
-      peso:0,unid:'horas',tipo_proceso:'',cliente:l.cliente||'',
-      sede:l.sedeR||c.sede||''});});
-    (t.lineasP||[]).forEach(function(l){rd.push({
-      id_rol:c.id,cedula:t.cedula,tipo:'AVANCE',
-      fecha:l.fecha||'',fecha_sort:l.fechaSort||'',turno:l.turno||'',
-      area:l.det2||'',hora_ing:'',hora_sal:'',horas:0,
-      tarifa:+(l.tarTu||0).toFixed(4),pago:+(l.valTu||0).toFixed(2),completo:1,
-      peso:+(l.cant||0).toFixed(3),unid:'lb',
-      tipo_proceso:l.tipoProceso||'',cliente:l.cliente||'',
-      sede:l.sedeR||c.sede||''});});});
-  fetch(getAPI(),{method:'POST',body:JSON.stringify({action:'guardar_rol',rol_pagos:rp,rol_detalle:rd})})
-    .then(function(r){return r.json();})
-    .then(function(r){
-      if(r.ok){
-        btn.textContent='✓('+r.saved+')';
-        c._pendiente_sheets=false; saveHistData(hist);
-        toast('✓ Sheets: '+r.saved+' en ROL_PAGOS · '+(r.detalle||rd.length)+' en ROL_DETALLE');
-      } else {
-        btn.textContent='⚠'; btn.disabled=false;
-        toast('Error Sheets: '+(r.error||'desconocido'));
-      }
-    })
-    .catch(function(e){btn.textContent='⚠'; btn.disabled=false; toast('Error red: '+e.message);});
-}
+
 
 // ── Exportar Nómina como XLSX ─────────────────────────────────────────────────
 function exportarNomina(cierreId){
@@ -1967,52 +1881,72 @@ function exportarNomina(cierreId){
   toast('✓ Nómina exportada: NOMINA_'+c.id+'.xlsx');
 }
 
-/* ── svTar: guarda TARIFA_HORA o TALLA_PROD en Sheet ─────────────────────── */
+/* ── svTar: guarda tarifa (TARIFA_HORA / TALLA_PROD) en Sheet ──────────── */
 function svTar(inp){
-  var sh=inp.dataset.sh, ix=parseInt(inp.dataset.ix), fd=inp.dataset.fd;
+  var sh=inp.dataset.sh,ix=parseInt(inp.dataset.ix),fd=inp.dataset.fd;
   var v=parseFloat(inp.value)||0;
   var arr=sh==='TARIFA_HORA'?TH:TP;
   var row=arr.find(function(x){return x.idx===ix;});
-  if(!row){toast('⚠ Fila no encontrada idx='+ix);return;}
+  if(!row) return;
   row[fd]=v;
-  _setBorderFlash(inp,'#f59e0b');
-  fetch(getAPI(),{method:'POST',
-    body:JSON.stringify({sheet:sh,idx:ix,diurno:row.diurno,nocturno:row.nocturno})})
-  .then(function(r){return r.json();})
-  .then(function(r){_setBorderFlash(inp,r.ok?'#22c55e':'#ef4444');if(r.ok)toast('✓ '+sh+' guardada');else toast('⚠ '+r.error);})
-  .catch(function(e){_setBorderFlash(inp,'#ef4444');toast('Error: '+e.message);});
+  inp.style.borderColor='#f59e0b';
+  fetch(getAPI(),{method:'POST',body:JSON.stringify({sheet:sh,idx:ix,diurno:row.diurno,nocturno:row.nocturno})})
+    .then(function(r){return r.json();})
+    .then(function(r){inp.style.borderColor=r.ok?'#22c55e':'#ef4444';setTimeout(function(){inp.style.borderColor='';},1800);if(r.ok)toast('✓ '+sh+' guardada');})
+    .catch(function(e){inp.style.borderColor='#ef4444';setTimeout(function(){inp.style.borderColor='';},1800);});
 }
-
-/* ── svFer: guarda FERIADO extra en Sheet ────────────────────────────────── */
+/* ── svFer: guarda extra de feriado en Sheet ───────────────────────────── */
 function svFer(inp){
-  var fi=parseInt(inp.dataset.fi), fd=inp.dataset.fd, v=parseFloat(inp.value)||0;
-  var f=FE[fi]; if(!f){toast('⚠ Feriado no encontrado');return;}
+  var fi=parseInt(inp.dataset.fi),fd=inp.dataset.fd,v=parseFloat(inp.value)||0;
+  var f=FE[fi]; if(!f) return;
   f[fd]=v;
-  _setBorderFlash(inp,'#f59e0b');
-  fetch(getAPI(),{method:'POST',
-    body:JSON.stringify({action:'update_feriado',id:f.id,fecha:f.fecha,
-      extra_hora_pg:f.extra_hora_pg,extra_avance_pg:f.extra_avance_pg})})
-  .then(function(r){return r.json();})
-  .then(function(r){_setBorderFlash(inp,r.ok?'#22c55e':'#ef4444');if(r.ok)toast('✓ Feriado '+f.fecha+' actualizado');else toast('⚠ '+r.error);})
-  .catch(function(e){_setBorderFlash(inp,'#ef4444');toast('Error: '+e.message);});
+  inp.style.borderColor='#f59e0b';
+  fetch(getAPI(),{method:'POST',body:JSON.stringify({action:'update_feriado',id:f.id,fecha:f.fecha,extra_hora_pg:f.extra_hora_pg,extra_avance_pg:f.extra_avance_pg})})
+    .then(function(r){return r.json();})
+    .then(function(r){inp.style.borderColor=r.ok?'#22c55e':'#ef4444';setTimeout(function(){inp.style.borderColor='';},1800);if(r.ok)toast('✓ Feriado '+f.fecha);})
+    .catch(function(e){inp.style.borderColor='#ef4444';setTimeout(function(){inp.style.borderColor='';},1800);});
 }
-
-/* ── svExp: guarda TARIFA_EXPRESO en Sheet ───────────────────────────────── */
+/* ── svExp: guarda tarifa expreso en Sheet ─────────────────────────────── */
 function svExp(inp){
-  var ti=parseInt(inp.dataset.ti), v=parseFloat(inp.value)||0;
-  var t=TF[ti]; if(!t){toast('⚠ Sector no encontrado');return;}
+  var ti=parseInt(inp.dataset.ti),v=parseFloat(inp.value)||0;
+  var t=TF[ti]; if(!t) return;
   t.valor_dia=v;
-  _setBorderFlash(inp,'#f59e0b');
-  fetch(getAPI(),{method:'POST',
-    body:JSON.stringify({action:'update_expreso',sector:t.sector,valor_dia:v})})
-  .then(function(r){return r.json();})
-  .then(function(r){_setBorderFlash(inp,r.ok?'#22c55e':'#ef4444');if(r.ok)toast('✓ Expreso '+t.sector+' $'+v.toFixed(2)+'/día');else toast('⚠ '+r.error);})
-  .catch(function(e){_setBorderFlash(inp,'#ef4444');toast('Error: '+e.message);});
+  inp.style.borderColor='#f59e0b';
+  fetch(getAPI(),{method:'POST',body:JSON.stringify({action:'update_expreso',sector:t.sector,valor_dia:v})})
+    .then(function(r){return r.json();})
+    .then(function(r){inp.style.borderColor=r.ok?'#22c55e':'#ef4444';setTimeout(function(){inp.style.borderColor='';},1800);if(r.ok)toast('✓ Expreso '+t.sector+' $'+v.toFixed(2)+'/día');})
+    .catch(function(e){inp.style.borderColor='#ef4444';setTimeout(function(){inp.style.borderColor='';},1800);});
 }
 
-function _setBorderFlash(el,color){
-  el.style.borderColor=color;
-  setTimeout(function(){el.style.borderColor='';},1800);
+/* ── guardarEnSheets: sube cierre a ROL_PAGOS + ROL_DETALLE ────────────── */
+function guardarEnSheets(cierreId){
+  var hist=loadHist(),c=hist.find(function(x){return x.id===cierreId;});
+  if(!c){toast('Cierre no encontrado');return;}
+  if(!getAPI()||!getAPI().includes('script.google')){toast('⚠ DEFAULT_API no configurado');return;}
+  var btn=event.target; btn.textContent='⏳'; btn.disabled=true;
+  var rp=c.trabajadores.map(function(t){return{
+    id_rol:c.id,periodo_ini:c.periodo_ini,periodo_fin:c.periodo_fin,
+    cargo:c.cargo||'',sede:c.sede||'',cedula:t.cedula,nombre:t.nombre,
+    sector:t.sector||'',celular:t.celular||'',dias_trab:t.diasTrab||0,
+    horas:+(t.hrsT||0).toFixed(2),pago_hora:+(t.total_tu_h||0).toFixed(2),
+    libras:+(t.lbsT||0).toFixed(2),pago_avance:+(t.total_tu_p||0).toFixed(2),
+    bruto:+(t.bruto||t.total_tu||0).toFixed(2),
+    desc_expreso:+(t.desc_expreso||0).toFixed(2),desc_bancario:+(t.desc_bancario||0).toFixed(2),
+    desc_anticipo:+(t.desc_anticipo||0).toFixed(2),desc_multa:+(t.desc_multa||0).toFixed(2),
+    desc_otros:+(t.desc_otros||0).toFixed(2),desc_obs:t.desc_obs||'',
+    total_desc:+(t.total_desc||0).toFixed(2),neto:+(t.neto||0).toFixed(2),
+    cuenta_banco:t.cuentaBanco||t.cuenta_banco||'',banco:t.banco||'',drive_url:t.drive_url||''};});
+  var rd=[];
+  c.trabajadores.forEach(function(t){
+    (t.lineasH||[]).forEach(function(l){rd.push({id_rol:c.id,cedula:t.cedula,tipo:'HORA',fecha:l.fecha||'',fecha_sort:l.fechaSort||'',turno:l.turno||'',area:l.det2||'',hora_ing:l.horaIng||'',hora_sal:l.horaSal||'',horas:+(l.cant||0).toFixed(2),tarifa:+(l.tarTu||0).toFixed(4),pago:+(l.valTu||0).toFixed(2),completo:1,peso:0,unid:'horas',tipo_proceso:'',cliente:l.cliente||'',sede:l.sedeR||c.sede||''});});
+    (t.lineasP||[]).forEach(function(l){rd.push({id_rol:c.id,cedula:t.cedula,tipo:'AVANCE',fecha:l.fecha||'',fecha_sort:l.fechaSort||'',turno:l.turno||'',area:l.det2||'',hora_ing:'',hora_sal:'',horas:0,tarifa:+(l.tarTu||0).toFixed(4),pago:+(l.valTu||0).toFixed(2),completo:1,peso:+(l.cant||0).toFixed(3),unid:'lb',tipo_proceso:l.tipoProceso||'',cliente:l.cliente||'',sede:l.sedeR||c.sede||''});});
+  });
+  fetch(getAPI(),{method:'POST',body:JSON.stringify({action:'guardar_rol',rol_pagos:rp,rol_detalle:rd})})
+    .then(function(r){return r.json();})
+    .then(function(r){
+      if(r.ok){btn.textContent='✓('+r.saved+')';c._pendiente_sheets=false;saveHistData(hist);toast('✓ Sheets: '+r.saved+' ROL_PAGOS · '+(r.detalle||rd.length)+' ROL_DETALLE');}
+      else{btn.textContent='⚠';btn.disabled=false;toast('Error: '+(r.error||''));}})
+    .catch(function(e){btn.textContent='⚠';btn.disabled=false;toast('Error red: '+e.message);});
 }
 </script>
 </body>
