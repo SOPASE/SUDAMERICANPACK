@@ -328,7 +328,7 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
           </div>
         </div>
         <div class="sln" id="sl"></div>
-        <button class="bgo" id="bp" onclick="proc()" disabled>⚡ Generar roles consolidados</button>
+        <button class="bgo" id="bp" onclick="$d('bp').textContent='⏳ Procesando...';$d('bp').disabled=true;setTimeout(proc,50)" disabled>⚡ Generar roles consolidados</button>
       </div>
       <div class="card">
         <div class="ctit" style="margin-bottom:10px">📂 Archivos cargados recientemente</div>
@@ -611,7 +611,7 @@ function fdtSort(v){
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 }
 function hFmt(h){const hrs=Math.floor(h),min=Math.round((h-hrs)*60);return hrs+':'+String(min).padStart(2,'0')+'h';}
-function toast(m){const t=$d('tst');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2800);}
+function toast(m){const t=$d('tst');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),5000);}
 function sectEmoji(s){return(s&&s.toUpperCase()==='LOCAL')?'🏠':'🚌';}
 
 // ── Lookups ───────────────────────────────────────────────────────────────────
@@ -926,7 +926,17 @@ function proc(){
   rPrev();rD4();rS5();
   $d('bguardar').disabled=false;
   $d('bguardar').textContent='💾 Guardar en Sheets → Historial';
-  toast('✓ '+det.length+' registros procesados — revisa Vista previa y luego guarda en Sheets');
+  // FIX: ir automáticamente a Vista previa y mostrar mensaje claro
+  const workers=bM().length;
+  // Restaurar botón Generar
+  const bpBtn=$d('bp');
+  if(bpBtn){bpBtn.disabled=false;bpBtn.textContent='⚡ Generar roles consolidados';}
+  const tabPrev=document.querySelectorAll('.tab')[2];
+  if(tabPrev) tabPrev.click();
+  // Mensaje más visible y duradero
+  const sl=$d('sl');
+  if(sl) sl.innerHTML='<span class="sgo">✓ '+workers+' trabajadores · '+det.length+' registros — Revisa Vista previa y presiona Guardar en Sheets</span>';
+  toast('✓ Roles generados: '+workers+' trabajadores · '+det.length+' registros');
 }
 
 // ── bM: agrupa por trabajador ─────────────────────────────────────────────────
@@ -1346,14 +1356,14 @@ function buildPdfHTML({w,ov,td,neto,cargo,sede,ini,fin,rango,anti,multa,otros,ob
     hRows=w.lineasH.map((l,rowIdx)=>{
       const sub=+(l.cant*l.tarTu).toFixed(2);
       return`<tr style="background:${rowIdx%2?rowAlt:'#fff'}">
-        <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;color:#1e293b">${l.fecha}</td>
-        <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;color:#1e293b">${l.turno==='NOCTURNO'?'NOCTURNO':'DIURNO'}</td>
-        <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;color:#1e293b">${l.det2}</td>
-        <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;color:#374151">${l.horaIng||'-'}</td>
-        <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;color:#374151">${l.horaSal||'-'}</td>
-        <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:right">${hFmt(l.cant)}</td>
-        <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:right">$${l.tarTu.toFixed(2)}</td>
-        <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:right;font-weight:700">$${sub.toFixed(2)}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;color:#1e293b;font-size:12px">${l.fecha}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;color:#1e293b;font-size:12px">${l.turno==='NOCTURNO'?'NOCTURNO':'DIURNO'}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;color:#1e293b;font-size:12px">${l.det2}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;color:#374151;font-size:12px">${l.horaIng||'-'}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;color:#374151;font-size:12px">${l.horaSal||'-'}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:right;color:#1e40af;font-weight:700;font-size:12px">${hFmt(l.cant)}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:right;color:#374151;font-size:12px">$${l.tarTu.toFixed(2)}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:right;font-weight:700;color:#15803d;font-size:12px">$${sub.toFixed(2)}</td>
       </tr>`;
     }).join('');
   }
@@ -1394,9 +1404,10 @@ function buildPdfHTML({w,ov,td,neto,cargo,sede,ini,fin,rango,anti,multa,otros,ob
       <div><div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:3px">Sede</div><div>${sede}</div></div>
       <div><div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:3px">Sector</div><div>${w.sector||'—'}</div></div>
       <div><div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:3px">Días trabajados</div><div style="font-weight:700">${w.diasTrab}</div></div>
-      ${w.celular?`<div><div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:3px">📱 Celular</div><div>${w.celular}</div></div>`:''}
-      ${w.cuentaBanco?`<div><div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:3px">🏦 Cuenta</div><div>${w.cuentaBanco}</div></div>`:''}
-      ${w.banco?`<div><div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:3px">Banco</div><div>${w.banco}</div></div>`:''}
+      ${w.celular?`<div><div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:3px">📱 Celular</div><div style="font-weight:600">${w.celular}</div></div>`:''}
+      ${w.banco?`<div><div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:3px">🏦 Banco</div><div style="font-weight:600">${w.banco}</div></div>`:''}
+      ${w.cuentaBanco?`<div><div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:3px">N° Cuenta</div><div style="font-weight:700;color:#1e40af">${w.cuentaBanco}</div></div>`:''}
+      ${(w.nombreProp||w.nombre)?`<div><div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:3px">👤 Propietario cuenta</div><div style="font-weight:700;color:#1e293b">${w.nombreProp||w.nombre}</div></div>`:''}
     </div>
     <!-- PERÍODO -->
     <div style="background:${colH};color:#fff;padding:10px 28px;display:flex;align-items:center;justify-content:space-between;font-size:12px">
@@ -1442,6 +1453,19 @@ function buildPdfHTML({w,ov,td,neto,cargo,sede,ini,fin,rango,anti,multa,otros,ob
         ${obs?`<div style="font-size:10px;color:#64748b;padding-top:4px;font-style:italic">Obs: ${obs}</div>`:''} 
       </div>
     </div>
+    <!-- CUENTA BANCARIA -->
+    ${w.cuentaBanco?`
+    <div style="background:#f0f9ff;border:1px solid #bae6fd;margin:0 28px 16px;border-radius:8px;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <div>
+        <div style="font-size:10px;color:#0369a1;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:2px;font-weight:700">🏦 Datos bancarios para transferencia</div>
+        <div style="font-size:13px;font-weight:700;color:#1e293b">${w.banco||''} &nbsp;·&nbsp; Cta: <span style="color:#1e40af">${w.cuentaBanco}</span></div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:10px;color:#0369a1;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:2px;font-weight:700">👤 Titular / Propietario</div>
+        <div style="font-size:13px;font-weight:700;color:#1e293b">${w.nombreProp||w.nombre}</div>
+        ${w.cedProp?`<div style="font-size:11px;color:#64748b">C.I: ${w.cedProp}</div>`:''}
+      </div>
+    </div>`:''}
     <!-- NETO -->
     <div style="background:${colH};color:#fff;padding:20px 28px;display:flex;align-items:center;justify-content:space-between">
       <span style="font-size:14px;font-weight:700;letter-spacing:0.04em">💰 NETO A PAGAR</span>
@@ -1537,7 +1561,12 @@ function sendWA(){
 
 // ── Guardar Cierre ────────────────────────────────────────────────────────────
 function guardarCierre(){
-  if(!det.length){toast('⚠ Primero genera los roles con el botón Generar');return;}
+  if(!det.length){
+    const sl=$d('sl');
+    if(sl) sl.innerHTML='<span style="color:var(--re)">⚠ Primero presiona Generar roles consolidados</span>';
+    toast('⚠ Primero genera los roles con el botón Generar');
+    return;
+  }
   if(!getAPI()||!getAPI().includes('script.google')){
     alert('⚠ DEFAULT_API no configurado.\n\nAbre el index.html y edita:\nconst DEFAULT_API = \'tu-url-apps-script\';');
     return;
