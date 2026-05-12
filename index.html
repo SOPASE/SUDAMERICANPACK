@@ -588,6 +588,13 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
       <button class="rmod-cls" onclick="closeRol()">✕ Cerrar</button>
     </div>
     <div class="rmod-body">
+      <!-- ── TABS PRIMERO: siempre visible sin scroll ── -->
+      <div class="rmod-tabs" style="flex-shrink:0">
+        <button class="rmod-tab on" id="rm-tab-h" onclick="rmTab('h')">⏱ HORAS <span class="rmod-badge-h" id="rm-cnt-h">0</span></button>
+        <button class="rmod-tab" id="rm-tab-a" onclick="rmTab('a')">📦 AVANCE <span class="rmod-badge-h" id="rm-cnt-a">0</span></button>
+      </div>
+      <div id="rm-det-h" style="display:block;min-height:160px;max-height:260px;overflow-y:auto;overflow-x:auto;background:rgba(0,0,0,0.15);flex-shrink:0"></div>
+      <div id="rm-det-a" style="display:none;min-height:160px;max-height:260px;overflow-y:auto;overflow-x:auto;background:rgba(0,0,0,0.15);flex-shrink:0"></div>
       <!-- Ingresos -->
       <div class="rmod-sec">
         <div class="rmod-sec-title">📥 INGRESOS</div>
@@ -633,13 +640,7 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
         <span class="rmod-neto-lbl">💰 NETO A PAGAR</span>
         <span class="rmod-neto-val" id="rm-neto">$0.00</span>
       </div>
-      <!-- Tabs detalle -->
-      <div class="rmod-tabs">
-        <button class="rmod-tab on" id="rm-tab-h" onclick="rmTab('h')">⏱ HORAS <span class="rmod-badge-h" id="rm-cnt-h">0</span></button>
-        <button class="rmod-tab" id="rm-tab-a" onclick="rmTab('a')">📦 AVANCE <span class="rmod-badge-h" id="rm-cnt-a">0</span></button>
-      </div>
-      <div class="rmod-detail" id="rm-det-h" style="display:block;min-height:140px;overflow-x:auto"></div>
-      <div class="rmod-detail" id="rm-det-a" style="display:none;min-height:140px;overflow-x:auto"></div>
+
     </div>
     <!-- Actions -->
     <div class="rmod-actions">
@@ -1209,22 +1210,29 @@ function rmCalc(){
 }
 
 function rmTab(t){
-  $d('rm-tab-h').classList.toggle('on',t==='h');
-  $d('rm-tab-a').classList.toggle('on',t==='a');
-  // Show/hide panels
+  [$d('rm-tab-h'),$d('rm-tab-a')].forEach(function(b){if(b)b.classList.remove('on');});
+  var activeTab=$d('rm-tab-'+t);
+  if(activeTab) activeTab.classList.add('on');
   var elH=$d('rm-det-h'), elA=$d('rm-det-a');
-  if(elH){ elH.style.display=t==='h'?'block':'none'; }
-  if(elA){ elA.style.display=t==='a'?'block':'none'; }
-  // Render content
-  if(t==='h') renderRmHoras();
-  else renderRmAvance();
+  if(elH) elH.style.display=t==='h'?'block':'none';
+  if(elA) elA.style.display=t==='a'?'block':'none';
+  try{
+    if(t==='h') renderRmHoras();
+    else renderRmAvance();
+  }catch(e){
+    var el=$d('rm-det-'+t);
+    if(el) el.innerHTML='<div style="padding:20px;color:#f87171;font-size:0.8rem">Error: '+e.message+'</div>';
+    console.error('rmTab error:',e);
+  }
 }
 
 function renderRmHoras(){
   const w=_curRolWorker;
   const el=$d('rm-det-h');
-  if(!el) return;
+  if(!el){ console.error('rm-det-h not found'); return; }
+  el.style.display='block'; // ensure visible
   const lH=w?(w.lineasH||[]):[];
+  console.log('renderRmHoras: worker=',w?w.nombre:'null','lineasH=',lH.length);
   if(!lH.length){
     el.innerHTML='<div style="padding:36px 20px;text-align:center">'
       +'<div style="font-size:2rem;margin-bottom:8px">⏱</div>'
@@ -1285,8 +1293,10 @@ function renderRmHoras(){
 function renderRmAvance(){
   const w=_curRolWorker;
   const el=$d('rm-det-a');
-  if(!el) return;
+  if(!el){ console.error('rm-det-a not found'); return; }
+  el.style.display='block'; // ensure visible
   const lP=w?(w.lineasP||[]):[];
+  console.log('renderRmAvance: worker=',w?w.nombre:'null','lineasP=',lP.length);
   if(!lP.length){
     el.innerHTML='<div style="padding:36px 20px;text-align:center">'
       +'<div style="font-size:2rem;margin-bottom:8px">📦</div>'
@@ -1624,7 +1634,11 @@ function sendWA(){
 
 // ── Guardar Cierre ────────────────────────────────────────────────────────────
 function guardarCierre(){
-  if(!det.length){toast('Genera los roles primero');return;}
+  if(!det.length){toast('⚠ Primero genera los roles con el botón Generar');return;}
+  if(!getAPI()||!getAPI().includes('script.google')){
+    alert('⚠ DEFAULT_API no configurado.\n\nAbre el index.html y edita:\nconst DEFAULT_API = \'tu-url-apps-script\';');
+    return;
+  }
   const list=bM();
   const {ini,fin,rango}=getDateRangeISO();
   const cargo=$d('cargo-input').value.trim()||'ROL';
@@ -1706,13 +1720,12 @@ function openRolHist(cierreId,key){
     $d('rm-banc-val').textContent=_curRolWorker.descBancario>0?'-$'+_curRolWorker.descBancario.toFixed(2):'Sin desc.';
   } else $d('rm-banc-row').style.display='none';
   $d('rm-anticipo').value=ov.anticipo||0;$d('rm-multa').value=ov.multa||0;$d('rm-otros').value=ov.otros||0;$d('rm-obs').value=ov.obs||'';
-  const _lh=(_curRolWorker.lineasH||[]).length;
-  const _la=(_curRolWorker.lineasP||[]).length;
-  $d('rm-cnt-h').textContent=_lh;
-  $d('rm-cnt-a').textContent=_la;
-  // Auto-switch to AVANCE tab if no hours
-  if(_lh===0 && _la>0) rmTab('a');
-  else rmTab('h');
+  const _lh=((_curRolWorker&&_curRolWorker.lineasH)||[]).length;
+  const _la=((_curRolWorker&&_curRolWorker.lineasP)||[]).length;
+  if($d('rm-cnt-h')) $d('rm-cnt-h').textContent=_lh;
+  if($d('rm-cnt-a')) $d('rm-cnt-a').textContent=_la;
+  // Auto-switch: show AVANCE if no hours, else show HORAS
+  setTimeout(function(){ rmTab(_lh===0&&_la>0?'a':'h'); }, 50);
   rmTab('h');rmCalc();$d('rmod').classList.add('show');
 }
 
