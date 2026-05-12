@@ -348,7 +348,7 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
     <!-- TAB 3: VISTA PREVIA -->
     <div id="p3" class="pane">
       <div class="prev-banner">
-        <div class="prev-info">👁 <strong>Vista previa</strong> — haz clic en un nombre para ver el rol completo</div>
+        <div class="prev-info">👁 <strong>Vista previa rápida</strong> — Ve a <strong>Historial</strong> para editar descuentos, generar PDFs y enviar por WhatsApp</div>
         <button class="bguardar" id="bguardar" onclick="guardarCierre()" disabled>💾 Guardar en Sheets →</button>
       </div>
       <div class="card">
@@ -473,7 +473,7 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
       </div>
       <!-- Neto -->
       <div style="padding:8px 18px;background:rgba(0,0,0,0.15);display:flex;justify-content:space-between;font-size:0.8rem">
-        <span style="color:#94a3b8">Total descuentos</span>
+        <span style="color:#64748b">Total descuentos</span>
         <span id="rm-total-desc" style="color:#f87171;font-family:var(--mo);font-weight:600">$0.00</span>
       </div>
       <div class="rmod-neto">
@@ -680,7 +680,7 @@ function login(){
         // Si no es JSON, mostrar los primeros 200 chars para debug
         setErr('⚠ El script no devolvió JSON válido.<br>'
           +'Verifica que el Apps Script esté publicado como web app.<br>'
-          +'<small style="color:#94a3b8">Respuesta: '+txt.substring(0,150)+'</small>');
+          +'<small style="color:#64748b">Respuesta: '+txt.substring(0,150)+'</small>');
         return;
       }
       // Cargar tablas globales
@@ -727,7 +727,7 @@ function _doLogin(id, pw){
   if(!u){
     // Mostrar debug útil sin exponer contraseñas
     le.innerHTML='⚠ Credenciales incorrectas.<br>'
-      +'<small style="color:#94a3b8">IDs en sistema: '
+      +'<small style="color:#64748b">IDs en sistema: '
       +USERS.map(function(x){return normCed(x.idempleado);}).join(', ')
       +'</small>';
     return;
@@ -869,8 +869,12 @@ function proc(){
   rPrev();rD4();rS5();
   $d('bguardar').disabled=false;
   $d('bguardar').textContent='💾 Guardar en Sheets →';
-  toast(`✓ ${det.length} registros procesados`);
-  document.querySelectorAll('.tab')[2].click();
+  // Auto-guardar en historial local para tener acceso desde Historial
+  _autoGuardarLocal();
+  toast('✓ '+det.length+' registros · Abre Historial para trabajar los roles');
+  // Ir directo al Historial
+  document.querySelectorAll('.tab')[5].click();
+  renderHist();
 }
 
 // ── bM: agrupa por trabajador ─────────────────────────────────────────────────
@@ -890,10 +894,12 @@ function bM(){
       const cuentaBanco=(ia&&aprobado)?ia.cuenta_banco:'';
       const banco=(ia&&aprobado)?ia.banco:'';
       const tipoCuenta=(ia&&aprobado)?ia.tipo_cuenta:'';
-      // DESC_BANCO_FIJO: $1 por transferencia bancaria cuando tiene cuenta aprobada
+      // Propietario: si nombre_prop está vacío → el titular es el propio trabajador
+      const nombreProp=(ia&&aprobado)?(ia.nombre_prop||''):'';
+      const cedProp   =(ia&&aprobado)?(ia.ced_prop   ||''):'';
       const DESC_BANCO_FIJO = 1;
       const descBancario = (ia&&aprobado&&cuentaBanco) ? DESC_BANCO_FIJO : 0;
-      m[k]={cedula:r.cedula,nombre:r.nombre,sector,celular,sede,aprobacion,cuentaBanco,banco,tipoCuenta,descBancario,expresoDia:getExpresoDia(sector),hT:0,eH:0,tH:0,lT:0,eP:0,tP:0,lineasH:[],lineasP:[],fechas:[]};
+      m[k]={cedula:r.cedula,nombre:r.nombre,sector,celular,sede,aprobacion,cuentaBanco,banco,tipoCuenta,nombreProp,cedProp,descBancario,expresoDia:getExpresoDia(sector),hT:0,eH:0,tH:0,lT:0,eP:0,tP:0,lineasH:[],lineasP:[],fechas:[]};
     }
     if(r.fechaSort&&!m[k].fechas.includes(r.fechaSort))m[k].fechas.push(r.fechaSort);
     if(r.tipo==='HORA'){m[k].hT+=r.cant;m[k].eH+=r.valEmp;m[k].tH+=r.valTu;m[k].lineasH.push(r);}
@@ -1014,12 +1020,16 @@ function openRol(safeCed){
   // Bancario: muestra si tiene cuenta en INFO_ADICIONAL
   if(w.cuentaBanco){
     $d('rm-banc-row').style.display='block';
-    $d('rm-banc-lbl').textContent='Banco: '+w.banco+(w.tipoCuenta?' ('+w.tipoCuenta+')':'')+' Cta: '+w.cuentaBanco;
-    $d('rm-banc-val').textContent=w.descBancario>0?'-$'+w.descBancario.toFixed(2):'Sin desc.';
+    // Si nombreProp está vacío → el titular es el mismo trabajador
+    const _titular = w.nombreProp ? (w.nombreProp + (w.cedProp?' · '+w.cedProp:'')) : w.nombre;
+    const _propTag = w.nombreProp ? ' · Prop: '+_titular : ' · Titular: '+w.nombre;
+    $d('rm-banc-lbl').textContent='🏦 '+w.banco+(w.tipoCuenta?' ('+w.tipoCuenta+')':'')+' · '+w.cuentaBanco+_propTag;
+    $d('rm-banc-val').textContent=w.descBancario>0?'-$'+w.descBancario.toFixed(2):'';
   } else $d('rm-banc-row').style.display='none';
   if(w.descBancario>0){
     $d('rm-banc-row').style.display='block';
-    $d('rm-banc-lbl').textContent='Desc. transferencia ('+w.banco+')';
+    const _tit2=w.nombreProp?w.nombreProp:w.nombre;
+    $d('rm-banc-lbl').textContent='🏦 '+w.banco+(w.tipoCuenta?' ('+w.tipoCuenta+')':'')+' · '+w.cuentaBanco+' · '+_tit2;
     $d('rm-banc-val').textContent='-$'+w.descBancario.toFixed(2);
   } else $d('rm-banc-row').style.display='none';
   // editables
@@ -1054,34 +1064,109 @@ function rmTab(t){
   $d('rm-tab-a').classList.toggle('on',t==='a');
   $d('rm-det-h').style.display=t==='h'?'block':'none';
   $d('rm-det-a').style.display=t==='a'?'block':'none';
-  if(t==='h') renderRmHoras();
-  else renderRmAvance();
+  // Always re-render on tab switch to ensure fresh data
+  if(t==='h'){ renderRmHoras(); }
+  else { renderRmAvance(); }
 }
 
 function renderRmHoras(){
   const w=_curRolWorker;if(!w)return;
-  if(!w.lineasH.length){$d('rm-det-h').innerHTML='<div style="padding:20px;text-align:center;color:#4ade80;font-size:0.8rem">Sin registros de horas</div>';return;}
-  const rows=w.lineasH.map(l=>{
-    const tk=l.turno==='NOCTURNO'?'🌙':'☀️';
-    const ferStr=l.esHoliday&&l.extraHora>0?` <span style="color:#a78bfa;font-size:0.65rem">+$${l.extraHora.toFixed(2)}/h</span>`:'';
-    const sede=l.sedeR||'—';
-    const ing=l.horaIng||'-';
-    const sal=l.horaSal||'-';
-    const sub=+(l.cant*l.tarTu).toFixed(2);
-    return `<tr><td>${sede}</td><td>${l.fecha}</td><td>${l.det2}</td><td>${tk}</td><td>${ing}</td><td>${sal}</td><td>${hFmt(l.cant)}</td><td>$${l.tarTu.toFixed(2)}${ferStr}</td><td style="font-weight:700;color:#4ade80">$${sub.toFixed(2)}</td></tr>`;
+  const el=$d('rm-det-h');
+  if(!w.lineasH.length){
+    el.innerHTML='<div style="padding:24px;text-align:center;color:#64748b;font-size:0.82rem">Sin registros de horas en este período</div>';
+    return;
+  }
+  const totalH = w.lineasH.reduce((s,l)=>s+l.cant,0);
+  const totalV = w.lineasH.reduce((s,l)=>s+(l.cant*l.tarTu),0);
+  const rows = w.lineasH.map(function(l){
+    const tk   = l.turno==='NOCTURNO'?'🌙':'☀️';
+    const ferBg= l.esHoliday?'background:rgba(167,139,250,0.08);':'';
+    const ferStr= l.esHoliday&&l.extraHora>0
+      ?'<span style="color:var(--pu);font-size:0.62rem;margin-left:3px">+$'+l.extraHora.toFixed(2)+'/h</span>':'';
+    const sede = l.sedeR||'—';
+    const ing  = l.horaIng||'—';
+    const sal  = l.horaSal||'—';
+    const sub  = (l.cant*l.tarTu).toFixed(2);
+    return '<tr style="'+ferBg+'">'
+      +'<td style="color:var(--tx2)">'+l.fecha+'</td>'
+      +'<td>'+tk+' '+l.det2+'</td>'
+      +'<td style="color:var(--tx2)">'+sede+'</td>'
+      +'<td style="color:var(--tx2);font-size:0.72rem">'+ing+'</td>'
+      +'<td style="color:var(--tx2);font-size:0.72rem">'+sal+'</td>'
+      +'<td style="font-family:var(--mo)">'+hFmt(l.cant)+'</td>'
+      +'<td style="color:var(--tl);font-family:var(--mo)">$'+l.tarTu.toFixed(2)+ferStr+'</td>'
+      +'<td style="font-weight:700;color:var(--gr);font-family:var(--mo);text-align:right">$'+sub+'</td>'
+      +'</tr>';
   }).join('');
-  $d('rm-det-h').innerHTML=`<table><thead><tr><th>Sede</th><th>Fecha</th><th>Área</th><th>Turno</th><th>Ingreso</th><th>Salida</th><th>Horas</th><th>Tarifa</th><th>Subtotal</th></tr></thead><tbody>${rows}</tbody></table>`;
+  const footer = '<tr style="background:rgba(59,130,246,0.08);font-weight:600;border-top:2px solid rgba(59,130,246,0.3)">'
+    +'<td colspan="5" style="color:var(--sap3);font-size:0.75rem;padding:9px 10px">TOTAL HORAS</td>'
+    +'<td style="font-family:var(--mo);color:var(--am)">'+hFmt(totalH)+'</td>'
+    +'<td></td>'
+    +'<td style="font-family:var(--mo);font-weight:700;color:var(--gr);text-align:right">$'+totalV.toFixed(2)+'</td>'
+    +'</tr>';
+  el.innerHTML='<table style="width:100%;border-collapse:collapse;font-size:0.76rem">'
+    +'<thead><tr>'
+    +'<th style="padding:8px 10px;color:var(--tx2);font-size:0.65rem;text-transform:uppercase;background:rgba(0,0,0,0.2);text-align:left">Fecha</th>'
+    +'<th style="padding:8px 10px;color:var(--tx2);font-size:0.65rem;text-transform:uppercase;background:rgba(0,0,0,0.2);text-align:left">Turno / Área</th>'
+    +'<th style="padding:8px 10px;color:var(--tx2);font-size:0.65rem;text-transform:uppercase;background:rgba(0,0,0,0.2);text-align:left">Sede</th>'
+    +'<th style="padding:8px 10px;color:var(--tx2);font-size:0.65rem;text-transform:uppercase;background:rgba(0,0,0,0.2);text-align:left">Ingreso</th>'
+    +'<th style="padding:8px 10px;color:var(--tx2);font-size:0.65rem;text-transform:uppercase;background:rgba(0,0,0,0.2);text-align:left">Salida</th>'
+    +'<th style="padding:8px 10px;color:var(--tx2);font-size:0.65rem;text-transform:uppercase;background:rgba(0,0,0,0.2);text-align:left">Horas</th>'
+    +'<th style="padding:8px 10px;color:var(--tx2);font-size:0.65rem;text-transform:uppercase;background:rgba(0,0,0,0.2);text-align:left">Tarifa</th>'
+    +'<th style="padding:8px 10px;color:var(--tx2);font-size:0.65rem;text-transform:uppercase;background:rgba(0,0,0,0.2);text-align:right">Subtotal</th>'
+    +'</tr></thead>'
+    +'<tbody>'+rows+footer+'</tbody>'
+    +'</table>';
 }
 
 function renderRmAvance(){
   const w=_curRolWorker;if(!w)return;
-  if(!w.lineasP.length){$d('rm-det-a').innerHTML='<div style="padding:20px;text-align:center;color:#4ade80;font-size:0.8rem">Sin registros de avance</div>';return;}
-  const rows=w.lineasP.map(l=>{
-    const ferStr=l.esHoliday?` <span style="color:#a78bfa;font-size:0.65rem">🎉</span>`:'';
-    const sub=+(l.cant*l.tarTu).toFixed(2);
-    return `<tr><td>${l.fecha}</td><td>${l.det2}</td><td>${l.turno==='NOCTURNO'?'🌙':'☀️'}</td><td>${l.cant.toFixed(2)}</td><td>lb</td><td>$${l.tarTu.toFixed(4)}</td><td style="font-weight:700;color:#4ade80">$${sub.toFixed(2)}${ferStr}</td></tr>`;
+  const el=$d('rm-det-a');
+  if(!w.lineasP.length){
+    el.innerHTML='<div style="padding:24px;text-align:center;color:#64748b;font-size:0.82rem">Sin registros de producción en este período</div>';
+    return;
+  }
+  const totalLb = w.lineasP.reduce((s,l)=>s+l.cant,0);
+  const totalV  = w.lineasP.reduce((s,l)=>s+(l.cant*l.tarTu),0);
+  const rows = w.lineasP.map(function(l){
+    const tk    = l.turno==='NOCTURNO'?'🌙':'☀️';
+    const ferBg = l.esHoliday?'background:rgba(167,139,250,0.08);':'';
+    const ferStr= l.esHoliday
+      ?'<span style="color:var(--pu);font-size:0.62rem;margin-left:3px">🎉</span>':'';
+    const sub   = (l.cant*l.tarTu).toFixed(2);
+    return '<tr style="'+ferBg+'">'
+      +'<td style="color:var(--tx2)">'+l.fecha+'</td>'
+      +'<td>'+tk+' '+l.det2+'</td>'
+      +'<td style="font-family:var(--mo);text-align:right">'+l.cant.toFixed(3)+'</td>'
+      +'<td style="color:var(--tx3)">lb</td>'
+      +'<td style="color:var(--tl);font-family:var(--mo)">$'+l.tarTu.toFixed(4)+'</td>'
+      +'<td style="font-weight:700;color:var(--gr);font-family:var(--mo);text-align:right">$'+sub+ferStr+'</td>'
+      +'</tr>';
   }).join('');
-  $d('rm-det-a').innerHTML=`<table><thead><tr><th>Fecha</th><th>Talla</th><th>Turno</th><th>Libras</th><th>Ud</th><th>Tarifa</th><th>Subtotal</th></tr></thead><tbody>${rows}</tbody></table>`;
+  const footer = '<tr style="background:rgba(59,130,246,0.08);font-weight:600;border-top:2px solid rgba(59,130,246,0.3)">'
+    +'<td colspan="2" style="color:var(--sap3);font-size:0.75rem;padding:9px 10px">TOTAL PRODUCCIÓN</td>'
+    +'<td style="font-family:var(--mo);color:var(--am);text-align:right">'+totalLb.toFixed(2)+'</td>'
+    +'<td style="color:var(--tx3)">lb</td>'
+    +'<td></td>'
+    +'<td style="font-family:var(--mo);font-weight:700;color:var(--gr);text-align:right">$'+totalV.toFixed(2)+'</td>'
+    +'</tr>';
+  // Bonus feriados si aplica
+  const bonusRow = w.bonusAvance>0
+    ?'<tr style="background:rgba(167,139,250,0.08)">'
+      +'<td colspan="5" style="color:var(--pu);font-size:0.75rem;padding:7px 10px">🎉 Bonus feriados avance</td>'
+      +'<td style="font-family:var(--mo);color:var(--pu);font-weight:600;text-align:right">+$'+w.bonusAvance.toFixed(2)+'</td>'
+      +'</tr>':'';
+  el.innerHTML='<table style="width:100%;border-collapse:collapse;font-size:0.76rem">'
+    +'<thead><tr>'
+    +'<th style="padding:8px 10px;color:var(--tx2);font-size:0.65rem;text-transform:uppercase;background:rgba(0,0,0,0.2);text-align:left">Fecha</th>'
+    +'<th style="padding:8px 10px;color:var(--tx2);font-size:0.65rem;text-transform:uppercase;background:rgba(0,0,0,0.2);text-align:left">Talla</th>'
+    +'<th style="padding:8px 10px;color:var(--tx2);font-size:0.65rem;text-transform:uppercase;background:rgba(0,0,0,0.2);text-align:right">Libras</th>'
+    +'<th style="padding:8px 10px;color:var(--tx2);font-size:0.65rem;text-transform:uppercase;background:rgba(0,0,0,0.2)"></th>'
+    +'<th style="padding:8px 10px;color:var(--tx2);font-size:0.65rem;text-transform:uppercase;background:rgba(0,0,0,0.2);text-align:left">Tarifa</th>'
+    +'<th style="padding:8px 10px;color:var(--tx2);font-size:0.65rem;text-transform:uppercase;background:rgba(0,0,0,0.2);text-align:right">Subtotal</th>'
+    +'</tr></thead>'
+    +'<tbody>'+rows+footer+bonusRow+'</tbody>'
+    +'</table>';
 }
 
 function rmSave(){
@@ -1165,18 +1250,18 @@ async function rmPDF(){
 function buildPdfHTML({w,ov,td,neto,cargo,sede,ini,fin,rango,anti,multa,otros,obs}){
   const logo=LOGO_URI;
   const ahora=new Date().toLocaleDateString('es-EC',{timeZone:'America/Guayaquil'});
-  const colH='#0d3b6e';const rowAlt='#f8fafc';
+  const colH='#0d3b6e';const rowAlt='#f1f5f9';
   // horas table rows
   let hRows='';
   if(w.lineasH.length){
     hRows=w.lineasH.map(l=>{
       const sub=+(l.cant*l.tarTu).toFixed(2);
       return`<tr style="background:${hRows.length%2?rowAlt:'#fff'}">
-        <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0">${l.fecha}</td>
-        <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0">${l.turno==='NOCTURNO'?'NOCTURNO':'DIURNO'}</td>
-        <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0">${l.det2}</td>
-        <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;color:#666">${l.horaIng||'-'}</td>
-        <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;color:#666">${l.horaSal||'-'}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;color:#1e293b">${l.fecha}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;color:#1e293b">${l.turno==='NOCTURNO'?'NOCTURNO':'DIURNO'}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;color:#1e293b">${l.det2}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;color:#374151">${l.horaIng||'-'}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;color:#374151">${l.horaSal||'-'}</td>
         <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:right">${hFmt(l.cant)}</td>
         <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:right">$${l.tarTu.toFixed(2)}</td>
         <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:right;font-weight:700">$${sub.toFixed(2)}</td>
@@ -1189,9 +1274,9 @@ function buildPdfHTML({w,ov,td,neto,cargo,sede,ini,fin,rango,anti,multa,otros,ob
     aRows=w.lineasP.map(l=>{
       const sub=+(l.cant*l.tarTu).toFixed(2);
       return`<tr>
-        <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0">${l.fecha}</td>
-        <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0">${l.turno==='NOCTURNO'?'NOCTURNO':'DIURNO'}</td>
-        <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0">${l.det2}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;color:#1e293b">${l.fecha}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;color:#1e293b">${l.turno==='NOCTURNO'?'NOCTURNO':'DIURNO'}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;color:#1e293b">${l.det2}</td>
         <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:right">${l.cant.toFixed(3)}</td>
         <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:right">$${l.tarTu.toFixed(4)}</td>
         <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:right;font-weight:700">$${sub.toFixed(2)}</td>
@@ -1265,7 +1350,7 @@ function buildPdfHTML({w,ov,td,neto,cargo,sede,ini,fin,rango,anti,multa,otros,ob
         ${multa>0?`<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px"><span style="color:#dc2626">⚠ Multa / Sanción</span><span style="color:#dc2626;font-weight:600">-$${multa.toFixed(2)}</span></div>`:''} 
         ${otros>0?`<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px"><span style="color:#dc2626">➕ Otros descuentos</span><span style="color:#dc2626;font-weight:600">-$${otros.toFixed(2)}</span></div>`:''} 
         ${td>0?`<div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid #e2e8f0;font-size:12px;color:#dc2626"><span>Total Descuentos</span><span style="font-weight:700">-$${td.toFixed(2)}</span></div>`:''} 
-        ${obs?`<div style="font-size:10px;color:#94a3b8;padding-top:4px;font-style:italic">Obs: ${obs}</div>`:''} 
+        ${obs?`<div style="font-size:10px;color:#64748b;padding-top:4px;font-style:italic">Obs: ${obs}</div>`:''} 
       </div>
     </div>
     <!-- NETO -->
@@ -1276,11 +1361,11 @@ function buildPdfHTML({w,ov,td,neto,cargo,sede,ini,fin,rango,anti,multa,otros,ob
     <!-- FIRMA -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;padding:30px 60px;margin-top:10px">
       <div style="text-align:center;border-top:1px solid #94a3b8;padding-top:10px">
-        <div style="font-size:9px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.1em">Firma del Colaborador</div>
+        <div style="font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:0.1em">Firma del Colaborador</div>
         <div style="font-size:12px;font-weight:600;margin-top:6px">${w.nombre}</div>
       </div>
       <div style="text-align:center;border-top:1px solid #94a3b8;padding-top:10px">
-        <div style="font-size:9px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.1em">Autorizado por</div>
+        <div style="font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:0.1em">Autorizado por</div>
         <div style="font-size:12px;font-weight:600;margin-top:6px">SUDAMERICANPACK</div>
       </div>
     </div>
@@ -1434,7 +1519,8 @@ function openRolHist(cierreId,key){
   if(_curRolWorker.descExpreso>0){$d('rm-exp-row').style.display='block';$d('rm-exp-lbl').textContent=`Expreso ${_curRolWorker.sector} (${_curRolWorker.diasTrab}d × $${_curRolWorker.expresoDia.toFixed(2)})`;$d('rm-exp-val').textContent='-$'+_curRolWorker.descExpreso.toFixed(2);}else $d('rm-exp-row').style.display='none';
   if(_curRolWorker.cuentaBanco){
     $d('rm-banc-row').style.display='block';
-    $d('rm-banc-lbl').textContent='Banco: '+(_curRolWorker.banco||'')+(_curRolWorker.tipoCuenta?' ('+_curRolWorker.tipoCuenta+')':'')+' Cta: '+_curRolWorker.cuentaBanco;
+    const _htit=_curRolWorker.nombreProp||_curRolWorker.nombre;
+    $d('rm-banc-lbl').textContent='🏦 '+(_curRolWorker.banco||'')+(_curRolWorker.tipoCuenta?' ('+_curRolWorker.tipoCuenta+')':'')+' · '+_curRolWorker.cuentaBanco+' · '+_htit;
     $d('rm-banc-val').textContent=_curRolWorker.descBancario>0?'-$'+_curRolWorker.descBancario.toFixed(2):'Sin desc.';
   } else $d('rm-banc-row').style.display='none';
   $d('rm-anticipo').value=ov.anticipo||0;$d('rm-multa').value=ov.multa||0;$d('rm-otros').value=ov.otros||0;$d('rm-obs').value=ov.obs||'';
@@ -1573,6 +1659,46 @@ function renderFileHistory(){
       <span class="vm" style="color:var(--tl)">${f.registros} reg</span>
       <span style="color:var(--tx3)">${f.fecha.split(',')[0]}</span>
     </div>`).join('');
+}
+
+// ── Auto-guardar en historial local al generar roles ─────────────────────────
+function _autoGuardarLocal(){
+  if(!det.length) return;
+  const list   = bM();
+  const {ini,fin,rango} = getDateRangeISO();
+  const cargo  = $d('cargo-input').value.trim()||'ROL';
+  const sede   = $d('sede-input').value.trim()||'AMBAS';
+  const idRol  = buildIdRol(cargo,ini,fin);
+  const cierre = {
+    id:idRol, rango, cargo, sede, periodo_ini:ini, periodo_fin:fin,
+    fecha_guardado:new Date().toLocaleString('es-EC',{timeZone:'America/Guayaquil'}),
+    _pendiente_sheets: true, // marcar para guardar en Sheets después
+    trabajadores: list.map(function(w){
+      const ov=getOv(w.cedula);
+      const td=+(w.descExpreso+w.descBancario+ov.anticipo+ov.multa+ov.otros).toFixed(2);
+      const neto=+(w.bruto-td).toFixed(2);
+      return {
+        cedula:w.cedula,nombre:w.nombre,sector:w.sector,celular:w.celular,sede:w.sede,
+        cuentaBanco:w.cuentaBanco,banco:w.banco,tipoCuenta:w.tipoCuenta,
+        nombreProp:w.nombreProp,cedProp:w.cedProp,
+        diasTrab:w.diasTrab,hrsT:+w.hT.toFixed(2),lbsT:+w.lT.toFixed(2),
+        total_emp_h:+w.eH.toFixed(2),total_tu_h:+w.tH.toFixed(2),
+        total_emp_p:+w.eP.toFixed(2),total_tu_p:+w.tP.toFixed(2),
+        bonusAvance:w.bonusAvance,
+        total_emp:+(w.eH+w.eP).toFixed(2),total_tu:w.bruto,bruto:w.bruto,
+        desc_expreso:w.descExpreso,desc_bancario:w.descBancario,
+        desc_anticipo:ov.anticipo,desc_multa:ov.multa,desc_otros:ov.otros,desc_obs:ov.obs,
+        total_desc:td,neto,
+        margen:+(w.eH+w.eP-w.bruto).toFixed(2),
+        lineasH:w.lineasH,lineasP:w.lineasP,estado:'pendiente',
+        expresoDia:w.expresoDia
+      };
+    })
+  };
+  const hist=loadHist();
+  const eIdx=hist.findIndex(function(x){return x.id===idRol;});
+  if(eIdx>=0) hist[eIdx]=cierre; else hist.unshift(cierre);
+  saveHistData(hist);
 }
 </script>
 </body>
