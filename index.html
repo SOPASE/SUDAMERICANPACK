@@ -606,7 +606,18 @@ function getExpresoDia(sector){
   return f?f.valor_dia:0;
 }
 function getInfoAd(ced){const c=normCed(ced);return IA.find(i=>normCed(i.cedula)===c)||null;}
-function getListado(cedula){const c=normCed(cedula);return LIST.find(l=>normCed(l.cedula)===c)||null;}
+function getListado(cedula){
+  const c=normCed(cedula);
+  if(!c) return null;
+  // 1. Match exact cedula normalizada
+  let r=LIST.find(l=>normCed(l.cedula)===c);
+  if(!r){
+    // 2. Match sin ceros iniciales
+    const cS=c.replace(/^0+/,'');
+    r=LIST.find(l=>normCed(l.cedula).replace(/^0+/,'')===cS);
+  }
+  return r||null;
+}
 function getOv(cedula){cedula=normCed(cedula);if(!overrides[cedula])overrides[cedula]={anticipo:0,multa:0,otros:0,obs:'',driveUrl:''};return overrides[cedula];}
 
 // ── API ───────────────────────────────────────────────────────────────────────
@@ -870,7 +881,8 @@ function bM(){
     if(!m[k]){
       const ia=getInfoAd(r.cedula);
       const li=getListado(r.cedula);
-      const sector=(li&&li.sector)||'';
+      // Sector: 1) LISTADO por cédula, 2) columna SECTOR en archivos subidos
+      const sector=(li&&li.sector)||(r['SECTOR']||r['SECTOR ']||r['CIUDAD']||'');
       const celular=(li&&li.celular)||'';
       const sede=(li&&li.sede)||'';
       const aprobacion=ia?ia.aprobacion:'';
