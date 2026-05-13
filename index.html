@@ -512,7 +512,8 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
     <!-- Actions -->
     <div class="rmod-actions">
       <button class="rmod-btn rmod-btn-save" onclick="rmSave()">💾 GUARDAR</button>
-      <button class="rmod-btn rmod-btn-pdf" onclick="rmPDF()">📄 PDF</button>
+      <button class="rmod-btn rmod-btn-pdf" onclick="rmPDF()" title="Descargar PDF en este dispositivo">📥 PDF</button>
+      <button class="rmod-btn" onclick="rmPDFDrive()" title="Guardar rol en Google Drive" style="background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);color:#93c5fd">☁ Drive</button>
       <button class="rmod-btn rmod-btn-wa" onclick="rmWA()">💬 WHATSAPP</button>
     </div>
   </div>
@@ -643,8 +644,14 @@ function getListado(cedula){
   if(!cedula) return null;
   var c=normCed(cedula);
   if(!c) return null;
-  // O(1) Map lookup instead of O(n) find
-  return LIST_MAP[c] || LIST_MAP[c.replace(/^0+/,'')] || null;
+  // 1. O(1) Map lookup
+  var r=LIST_MAP[c]||LIST_MAP[c.replace(/^0+/,'')];
+  if(r) return r;
+  // 2. Linear fallback (handles any edge cases)
+  return LIST.find(function(l){
+    var lc=normCed(l.cedula);
+    return lc===c||lc.replace(/^0+/,'')===c.replace(/^0+/,'');
+  })||null;
 }
 function getOv(cedula){cedula=normCed(cedula);if(!overrides[cedula])overrides[cedula]={anticipo:0,multa:0,otros:0,obs:'',driveUrl:''};return overrides[cedula];}
 
@@ -660,7 +667,17 @@ function cargarTarifas(){
   if(!_url){setApiSt('err','⚠ No hay URL del Apps Script configurada. Cierra sesión y agrégala en el login.');return;}
   fetch(_url).then(r=>r.json()).then(data=>{
     TH=data.tarifa_hora||[];TP=data.talla_prod||[];TF=data.tarifa_expreso||[];
-    FE=data.feriados||[];IA=data.info_adicional||[];IA_MAP={};IA.forEach(function(ia){var c=normCed(ia.cedula);if(c)IA_MAP[c]=ia;});LIST=data.listado||[];LIST_MAP={};LIST.forEach(function(l){var c=normCed(l.cedula);if(c){LIST_MAP[c]=l;var s=c.replace(/^0+/,"");if(s&&!LIST_MAP[s])LIST_MAP[s]=l;}});
+    FE=data.feriados||[];IA=data.info_adicional||[];IA_MAP={};IA.forEach(function(ia){var c=normCed(ia.cedula);if(c)IA_MAP[c]=ia;});LIST=data.listado||[];LIST_MAP={};
+      LIST.forEach(function(l){
+        var raw=String(l.cedula||'').trim();
+        var c=normCed(raw);
+        if(c){
+          LIST_MAP[c]=l;
+          LIST_MAP[raw]=l; // also store raw
+          var s=c.replace(/^0+/,'');
+          if(s) LIST_MAP[s]=l;
+        }
+      });
     tarifasOk=true;
     if(data.drive_folder_id){const _df=$d('drive-folder');if(_df&&!_df.value)_df.value=data.drive_folder_id;}
     setApiSt('ok',`${TH.length} áreas · ${TP.length} tallas · ${FE.length} feriados · ${LIST.length} listado · ${IA.length} adicional`);
@@ -948,7 +965,8 @@ function bM(){
       const ia=getInfoAd(r.cedula);
       const li=getListado(r.cedula);
       // Sector: 1) LISTADO por cédula, 2) columna SECTOR en archivos subidos
-      const sector=(li&&li.sector)||(r['SECTOR']||r['SECTOR ']||r['CIUDAD']||'');
+      var _liSect=(li&&li.sector)?String(li.sector).trim():'';
+        const sector=_liSect||String(r['SECTOR']||r['SECTOR ']||r['CIUDAD']||'').trim()||'';
       const celular=(li&&li.celular)||'';
       const sede=(li&&li.sede)||'';
       const aprobacion=ia?ia.aprobacion:'';
@@ -1346,11 +1364,8 @@ async function rmPDF(){
         .then(r=>{
           if(r.ok){
             ov.driveUrl=r.url;
-          // Persist URL to historial
-          if(_curHistCierreId){var hst=loadHist();var hc=hst.find(function(x){return x.id===_curHistCierreId;});if(hc){var ht=hc.trabajadores.find(function(x){return x.cedula===w.cedula;});if(ht){ht.drive_url=r.url;saveHistData(hst);}}}
-            toast('✓ PDF guardado en Drive');
-            // Actualizar en Sheets si el cierre ya fue guardado
-            const {ini:ri,fin:rf}=getDateRangeISO();
+                  toast('✓ PDF guardado en Drive');
+                    const {ini:ri,fin:rf}=getDateRangeISO();
             const idRol=buildIdRol(cargo,ri,rf);
             fetch(getAPI(),{method:'POST',body:JSON.stringify({action:'update_estado',id_rol:idRol,cedula:w.cedula,estado:'PENDIENTE',drive_url:r.url})}).catch(()=>{});
           }
@@ -1882,62 +1897,97 @@ function marcarTodosPagados(cierreId){
 
 // ── Exportar Nómina como XLSX ─────────────────────────────────────────────────
 function exportarNomina(cierreId){
-  if(typeof XLSX==='undefined'){toast('XLSX no cargado');return;}
+  if(typeof XLSX==='undefined'){toast('Libreria XLSX no disponible');return;}
   try{
     var hist=loadHist();
     var c=hist.find(function(x){return x.id===cierreId;});
     if(!c){toast('Cierre no encontrado');return;}
     var tAll=c.trabajadores||[];
-    if(!tAll.length){toast('Sin trabajadores');return;}
-    // Sums
+    if(!tAll.length){toast('Sin trabajadores en este cierre');return;}
+
+    // Sums for totals row
     var sD=0,sH=0,sHP=0,sL=0,sLP=0,sB=0,sE=0,sBn=0,sA=0,sM=0,sO=0,sTD=0,sN=0;
     tAll.forEach(function(t){
       sD+=+(t.diasTrab||t.dias_trab||0);
-      sH+=+(t.hrsT||t.horas||0);sHP+=+(t.total_tu_h||t.pago_hora||0);
-      sL+=+(t.lbsT||t.libras||0);sLP+=+(t.total_tu_p||t.pago_avance||0);
-      sB+=+(t.bruto||t.total_tu||0);sE+=+(t.desc_expreso||0);
-      sBn+=+(t.desc_bancario||0);sA+=+(t.desc_anticipo||0);
-      sM+=+(t.desc_multa||0);sO+=+(t.desc_otros||0);
-      sTD+=+(t.total_desc||0);sN+=+(t.neto||0);
+      sH+=+(t.hrsT||t.horas||0); sHP+=+(t.total_tu_h||t.pago_hora||0);
+      sL+=+(t.lbsT||t.libras||0); sLP+=+(t.total_tu_p||t.pago_avance||0);
+      sB+=+(t.bruto||t.total_tu||0); sE+=+(t.desc_expreso||0);
+      sBn+=+(t.desc_bancario||0); sA+=+(t.desc_anticipo||0);
+      sM+=+(t.desc_multa||0); sO+=+(t.desc_otros||0);
+      sTD+=+(t.total_desc||0); sN+=+(t.neto||0);
     });
     var f2=function(v){return Math.round(+(v||0)*100)/100;};
-    // Get sector/celular from LIST_MAP (by cedula from LISTADO)
+
+    // Build data rows
     var D=[];
-    var blank26=function(){return ['','','','','','','','','','','','','','','','','','','','','','','','','',''];};
-    D.push(['SUDAMERICAN PACK - ROL DE PAGOS','','','','','','','','','','','','','','','','','','','','','','','','','']);
-    var row2=blank26();row2[0]='ROL:';row2[1]=''+c.id;row2[3]='PERIODO:';row2[4]=''+( c.rango||'');row2[6]='CARGO:';row2[7]=''+( c.cargo||'');row2[9]='SEDE:';row2[10]=''+( c.sede||'');
-    D.push(row2);
-    D.push(blank26());
-    D.push(['N','CEDULA','NOMBRE COMPLETO','CARGO','SEDE','SECTOR','CELULAR','DIAS','HORAS','$ HORA','LIBRAS','$ AVANCE','BRUTO','DESC.EXPRESO','DESC.BANCARIO','DESC.ANTICIPO','DESC.MULTA','DESC.OTROS','TOTAL DESC.','NETO A PAGAR','BANCO','N CUENTA','TITULAR','ESTADO','FECHA PAGO','OBS']);
+    var b26=function(){return new Array(26).fill('');};
+    var r1=b26(); r1[0]='SUDAMERICAN PACK - ROL DE PAGOS'; D.push(r1);
+    var r2=b26();
+    r2[0]='ROL:'; r2[1]=String(c.id);
+    r2[3]='PERIODO:'; r2[4]=String(c.rango||'');
+    r2[6]='CARGO:'; r2[7]=String(c.cargo||'');
+    r2[9]='SEDE:'; r2[10]=String(c.sede||'');
+    D.push(r2);
+    D.push(b26());
+    D.push(['N','CEDULA','NOMBRE COMPLETO','CARGO','SEDE','SECTOR','CELULAR',
+      'DIAS','HORAS','$ HORA','LIBRAS','$ AVANCE','BRUTO',
+      'DESC.EXPRESO','DESC.BANCARIO','DESC.ANTICIPO','DESC.MULTA','DESC.OTROS',
+      'TOTAL DESC.','NETO A PAGAR','BANCO','N CUENTA','TITULAR','ESTADO','FECHA PAGO','OBS']);
+
     tAll.forEach(function(t,i){
-      // Get sector and celular from LISTADO if not in saved data
+      // Get sector/celular from LISTADO if missing in saved data
       var li=getListado(t.cedula);
-      var sector=t.sector||(li?li.sector:'')||'';
-      var celular=t.celular||(li?li.celular:'')||'';
-      var cuenta=''+( t.cuentaBanco||t.cuenta_banco||'');
-      var titular=t.nombreProp?(t.nombreProp):(cuenta?'':(''+( t.nombre||'')));
-      D.push([
-        i+1,''+t.cedula,''+t.nombre,''+( c.cargo||''),''+( c.sede||''),sector,celular,
-        +(t.diasTrab||t.dias_trab||0),f2(t.hrsT||t.horas),f2(t.total_tu_h||t.pago_hora),
-        f2(t.lbsT||t.libras),f2(t.total_tu_p||t.pago_avance),f2(t.bruto||t.total_tu),
-        f2(t.desc_expreso),f2(t.desc_bancario),f2(t.desc_anticipo),
-        f2(t.desc_multa),f2(t.desc_otros),f2(t.total_desc),f2(t.neto),
-        ''+( t.banco||''),cuenta,titular,
-        t.estado==='pagado'?'PAGADO':'PENDIENTE',''+( t.fecha_pago||''),''+( t.desc_obs||'')
-      ]);
+      var sector=((t.sector&&t.sector.trim())||(li&&li.sector&&li.sector.trim())||'');
+      var celular=((t.celular&&t.celular.trim())||(li&&li.celular&&li.celular.trim())||'');
+      var cuenta=String(t.cuentaBanco||t.cuenta_banco||'');
+      var titular=t.nombreProp?String(t.nombreProp):(cuenta?'':String(t.nombre||''));
+      var row=b26();
+      var vals=[
+        i+1, String(t.cedula||''), String(t.nombre||''),
+        String(c.cargo||''), String(c.sede||''), sector, celular,
+        +(t.diasTrab||t.dias_trab||0),
+        f2(t.hrsT||t.horas), f2(t.total_tu_h||t.pago_hora),
+        f2(t.lbsT||t.libras), f2(t.total_tu_p||t.pago_avance),
+        f2(t.bruto||t.total_tu),
+        f2(t.desc_expreso), f2(t.desc_bancario),
+        f2(t.desc_anticipo), f2(t.desc_multa), f2(t.desc_otros),
+        f2(t.total_desc), f2(t.neto),
+        String(t.banco||''), cuenta, titular,
+        t.estado==='pagado'?'PAGADO':'PENDIENTE',
+        String(t.fecha_pago||''), String(t.desc_obs||'')
+      ];
+      for(var vi=0;vi<vals.length;vi++) row[vi]=vals[vi];
+      D.push(row);
     });
-    var totRow=blank26();
+
+    var totRow=b26();
     totRow[0]='TOTALES';
     var tv=[sD,f2(sH),f2(sHP),f2(sL),f2(sLP),f2(sB),f2(sE),f2(sBn),f2(sA),f2(sM),f2(sO),f2(sTD),f2(sN)];
     for(var ti=0;ti<tv.length;ti++) totRow[7+ti]=tv[ti];
     D.push(totRow);
+
+    // Create workbook
     var wb=XLSX.utils.book_new();
     var ws=XLSX.utils.aoa_to_sheet(D);
-    ws['!cols']=[{wch:4},{wch:13},{wch:34},{wch:22},{wch:8},{wch:12},{wch:13},{wch:5},{wch:8},{wch:8},{wch:8},{wch:8},{wch:10},{wch:11},{wch:12},{wch:11},{wch:10},{wch:10},{wch:11},{wch:12},{wch:13},{wch:13},{wch:34},{wch:12},{wch:13},{wch:16}];
+    ws['!cols']=[{wch:4},{wch:13},{wch:34},{wch:22},{wch:8},{wch:12},{wch:13},
+      {wch:5},{wch:8},{wch:8},{wch:8},{wch:8},{wch:10},
+      {wch:11},{wch:12},{wch:11},{wch:10},{wch:10},{wch:11},{wch:12},
+      {wch:13},{wch:13},{wch:34},{wch:12},{wch:13},{wch:16}];
     XLSX.utils.book_append_sheet(wb,'NOMINA',ws);
-    XLSX.writeFile(wb,'NOMINA_SOPASE_'+c.id+'.xlsx');
-    toast('Nomina exportada: '+tAll.length+' trabajadores');
-  }catch(err){console.error(err);toast('Error: '+err.message);}
+
+    // Download via Blob (more reliable than XLSX.writeFile in some browsers)
+    var wbout=XLSX.write(wb,{bookType:'xlsx',type:'array'});
+    var blob=new Blob([wbout],{type:'application/octet-stream'});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');
+    a.href=url; a.download='NOMINA_SOPASE_'+c.id+'.xlsx';
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},1000);
+    toast('Nomina descargada: '+tAll.length+' trabajadores');
+  }catch(err){
+    console.error('exportarNomina error:',err);
+    toast('Error al exportar: '+err.message);
+  }
 }
 
 /* ── svTar: guarda tarifa (TARIFA_HORA / TALLA_PROD) en Sheet ──────────── */
@@ -2211,6 +2261,73 @@ async function crearPdfDrive(btn){
   }catch(e){
     wrap.style.left='-9999px'; wrap.style.zIndex='-1'; wrap.innerHTML='';
     btn.textContent='\u26a0';btn.disabled=false;
+    toast('Error PDF: '+e.message);
+  }
+}
+
+/* ── rmPDFDrive: genera PDF → sube a Drive → guarda URL ─────────────── */
+async function rmPDFDrive(){
+  if(!_curRolWorker){toast('Sin trabajador seleccionado');return;}
+  const w=_curRolWorker;
+  const ov=getOv(w.cedula);
+  const anti=gn($d('rm-anticipo').value);
+  const multa=gn($d('rm-multa').value);
+  const otros=gn($d('rm-otros').value);
+  const obs=$d('rm-obs').value;
+  ov.anticipo=anti; ov.multa=multa; ov.otros=otros; ov.obs=obs;
+  const td=+(w.descExpreso+w.descBancario+anti+multa+otros).toFixed(2);
+  const neto=+(w.bruto-td).toFixed(2);
+  const {ini,fin,rango}=_curHistCierreId?
+    (function(){var c=(loadHist().find(function(x){return x.id===_curHistCierreId;})||{});return{ini:c.periodo_ini||'',fin:c.periodo_fin||'',rango:c.rango||''};})():
+    getDateRangeISO();
+  const cargo=$d('cargo-input')?($d('cargo-input').value||''):'';
+  const sede=$d('sede-input')?($d('sede-input').value||''):'';
+  const driveBtn=$d('rm-drive-link');
+  if(driveBtn) driveBtn.style.display='none';
+  toast('Generando PDF para Drive...');
+  const html=buildPdfHTML({w,ov,td,neto,cargo,sede,ini,fin,rango,anti,multa,otros,obs});
+  const wrap=$d('pdf-wrap');
+  wrap.innerHTML=html; wrap.style.left='0'; wrap.style.zIndex='9999';
+  await new Promise(function(r){setTimeout(r,350);});
+  try{
+    const canvas=await html2canvas(wrap,{scale:1.5,useCORS:true,backgroundColor:'#ffffff',logging:false,imageTimeout:0});
+    const imgData=canvas.toDataURL('image/png');
+    const {jsPDF}=window.jspdf;
+    const pdf=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+    const pW=pdf.internal.pageSize.getWidth(), pH=pdf.internal.pageSize.getHeight();
+    const ratio=canvas.width/canvas.height;
+    let pw2=pW,ph2=pW/ratio;
+    if(ph2>pH){ph2=pH;pw2=pH*ratio;}
+    pdf.addImage(imgData,'PNG',(pW-pw2)/2,0,pw2,ph2);
+    wrap.style.left='-9999px'; wrap.style.zIndex='-1'; wrap.innerHTML='';
+    const fname='ROL_'+w.nombre.replace(/\s+/g,'_').substring(0,20)+'_'+(ini||'').replace(/-/g,'')+'.pdf';
+    const pdfB64=pdf.output('datauristring').split(',')[1];
+    const folderId=($d('drive-folder')||{value:''}).value||'';
+    fetch(getAPI(),{method:'POST',body:JSON.stringify({
+      action:'save_to_drive',folder_id:folderId,pdf_base64:pdfB64,filename:fname
+    })})
+    .then(function(r){return r.json();})
+    .then(function(r){
+      if(r.ok){
+        ov.driveUrl=r.url;
+        if(driveBtn){driveBtn.href=r.url;driveBtn.style.display='inline';}
+        // Save URL to historial if open from historial
+        if(_curHistCierreId){
+          var hist=loadHist();
+          var hc=hist.find(function(x){return x.id===_curHistCierreId;});
+          if(hc){var ht=hc.trabajadores.find(function(x){return x.cedula===w.cedula;});if(ht){ht.drive_url=r.url;saveHistData(hist);renderHist();}}
+        }
+        toast('Rol guardado en Drive: '+w.nombre.split(' ')[0]);
+      } else {
+        toast('Error Drive: '+(r.error||''));
+      }
+    })
+    .catch(function(e){
+      wrap.style.left='-9999px'; wrap.innerHTML='';
+      toast('Error red: '+e.message);
+    });
+  }catch(e){
+    wrap.style.left='-9999px'; wrap.style.zIndex='-1'; wrap.innerHTML='';
     toast('Error PDF: '+e.message);
   }
 }
