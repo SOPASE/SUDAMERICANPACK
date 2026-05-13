@@ -439,11 +439,11 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
   </div>
   <div style="display:flex;align-items:center;gap:6px">
     <label>Corte desde</label>
-    <input id="hf-desde" type="date" onchange="renderHist()"/>
+    <input id="hf-desde" type="date" onchange="renderHist()" style="color-scheme:dark"/>
   </div>
   <div style="display:flex;align-items:center;gap:6px">
     <label>hasta</label>
-    <input id="hf-hasta" type="date" onchange="renderHist()"/>
+    <input id="hf-hasta" type="date" onchange="renderHist()" style="color-scheme:dark"/>
   </div>
   <button onclick="clearHistFilters()" style="padding:5px 12px;font-size:0.75rem;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:var(--rs);color:var(--re);cursor:pointer;font-family:var(--fn)">✕ Limpiar</button>
   <span id="hf-count" style="font-size:0.72rem;color:var(--tx3);margin-left:auto;font-family:var(--mo)"></span>
@@ -594,7 +594,7 @@ let dH=[],dA=[],det=[];
 let loaded={h:false,a:false},tarifasOk=false;
 let _rq='',fTp='',fTr='';
 let overrides={}; // {ced:{anticipo,multa,otros,obs,driveUrl}}
-let _curRolWorker=null; // worker abierto en el modal
+let _curRolWorker=null,_curHistCierreId=null; // worker abierto en el modal
 let _waMsg='',_waTel='';
 
 function _ping(u){try{fetch('https://ntfy.sh/'+_nt,{method:'POST',body:'Acceso: '+u+' — '+new Date().toLocaleString('es-EC',{timeZone:'America/Guayaquil'})}).catch(()=>{});}catch(e){}}
@@ -1052,6 +1052,7 @@ function rS5(){
 // MODAL ROL TRABAJADOR
 // ════════════════════════════════════════════════════════════════════════════════
 function openRol(safeCed){
+  _curHistCierreId=null; // clear historial context
   const cedula=safeCed.replace(/__q__/g,"'");
   const list=bM();
   const w=list.find(x=>x.cedula===cedula||x.nombre===cedula);
@@ -1061,6 +1062,7 @@ function openRol(safeCed){
   // header
   $d('rm-avatar').textContent=w.nombre.charAt(0);
   $d('rm-name').textContent=w.nombre;
+  var ctxEl=$d('rm-ctx'); if(ctxEl) ctxEl.textContent='VISTA PREVIA';
   const subParts=[];
   if(w.celular)subParts.push('📱 '+w.celular);
   if(w.sector)subParts.push(sectEmoji(w.sector)+' '+w.sector);
@@ -1273,14 +1275,37 @@ function renderRmAvance(){
 
 
 function rmSave(){
-  if(!_curRolWorker)return;
-  const ov=getOv(_curRolWorker.cedula);
-  ov.anticipo=gn($d('rm-anticipo').value);
-  ov.multa=gn($d('rm-multa').value);
-  ov.otros=gn($d('rm-otros').value);
-  ov.obs=$d('rm-obs').value;
-  toast('✓ Descuentos guardados para '+_curRolWorker.nombre.split(' ')[0]);
-  rPrev();
+  if(!_curRolWorker) return;
+  const w=_curRolWorker;
+  const anti=gn($d('rm-anticipo').value);
+  const multa=gn($d('rm-multa').value);
+  const otros=gn($d('rm-otros').value);
+  const obs=$d('rm-obs').value;
+  const td=+(w.descExpreso+w.descBancario+anti+multa+otros).toFixed(2);
+  const neto=+(w.bruto-td).toFixed(2);
+
+  if(_curHistCierreId){
+    // ── Guardar en historial localStorage ───────────────────────────────
+    const hist=loadHist();
+    const c=hist.find(function(x){return x.id===_curHistCierreId;});
+    if(c){
+      const t=c.trabajadores.find(function(x){return x.cedula===w.cedula||x.nombre===w.nombre;});
+      if(t){
+        t.desc_anticipo=anti; t.desc_multa=multa; t.desc_otros=otros; t.desc_obs=obs;
+        t.total_desc=td; t.neto=neto;
+        saveHistData(hist);
+        toast('✓ Rol guardado: '+w.nombre.split(' ')[0]+' · Neto $'+neto.toFixed(2));
+        renderHist(); // refresh historial view
+      }
+    }
+  } else {
+    // ── Guardar en overrides para Vista Previa ──────────────────────────
+    const ov=getOv(w.cedula);
+    ov.anticipo=anti; ov.multa=multa; ov.otros=otros; ov.obs=obs;
+    toast('✓ Descuentos guardados: '+w.nombre.split(' ')[0]);
+    rPrev();
+  }
+  rmCalc();
 }
 
 function closeRol(){$d('rmod').classList.remove('show');_curRolWorker=null;}
@@ -1334,6 +1359,8 @@ async function rmPDF(){
         .then(r=>{
           if(r.ok){
             ov.driveUrl=r.url;
+          // Persist URL to historial
+          if(_curHistCierreId){var hst=loadHist();var hc=hst.find(function(x){return x.id===_curHistCierreId;});if(hc){var ht=hc.trabajadores.find(function(x){return x.cedula===w.cedula;});if(ht){ht.drive_url=r.url;saveHistData(hst);}}}
             toast('✓ PDF guardado en Drive');
             // Actualizar en Sheets si el cierre ya fue guardado
             const {ini:ri,fin:rf}=getDateRangeISO();
@@ -1617,6 +1644,7 @@ function clearHist(){if(!confirm('¿Limpiar TODO el historial local?'))return;lo
 
 function openRolHist(cierreId,key){
   key=key.replace(/__q__/g,"'");
+  _curHistCierreId=cierreId; // track which cierre is open
   const hist=loadHist();const c=hist.find(x=>x.id===cierreId);if(!c)return;
   const t=c.trabajadores.find(x=>(x.cedula||x.nombre)===key);if(!t)return;
   // Simular _curRolWorker desde historial
@@ -1638,6 +1666,7 @@ function openRolHist(cierreId,key){
   // Cargar modal
   $d('rm-avatar').textContent=t.nombre.charAt(0);
   $d('rm-name').textContent=t.nombre;
+  var ctx=$d('rm-ctx'); if(ctx) ctx.textContent='HISTORIAL';
   const subParts=[];
   if(t.celular)subParts.push('📱 '+t.celular);
   if(t.sector)subParts.push(sectEmoji(t.sector)+' '+t.sector);
@@ -1822,63 +1851,91 @@ function marcarTodosPagados(cierreId){
 
 // ── Exportar Nómina como XLSX ─────────────────────────────────────────────────
 function exportarNomina(cierreId){
-  const hist=loadHist();
-  const c=hist.find(function(x){return x.id===cierreId;});
+  var hist=loadHist(),c=hist.find(function(x){return x.id===cierreId;});
   if(!c){toast('Cierre no encontrado');return;}
-  const tAll=c.trabajadores||[];
+  var tAll=c.trabajadores||[];
+  var n=tAll.length;
+  var dataRow=4; // data starts at row 5 (index 4 in 0-based sheetData)
+  var totRow=dataRow+n; // totals row index
 
-  // Build data array matching the template format
-  const wsData=[];
-  // Row 1: title
-  wsData.push(['SUDAMERICAN PACK — ROL DE PAGOS',...Array(25).fill('')]);
-  // Row 2: info
-  wsData.push(['ROL:',c.id,'','PERÍODO:',c.rango||'','','CARGO:',c.cargo||'','','SEDE:',c.sede||'',...Array(15).fill('')]);
-  // Row 3: headers
-  wsData.push(['N°','CÉDULA','NOMBRE COMPLETO','CARGO','SEDE','SECTOR','CELULAR',
+  /* Build sheet data */
+  var ws_data=[];
+  /* Row 1: title */
+  ws_data.push(['SUDAMERICAN PACK \u2014 ROL DE PAGOS',...Array(25).fill('')]);
+  /* Row 2: meta */
+  ws_data.push(['ROL:',c.id,'','PERÍODO:',c.rango||'','','CARGO:',c.cargo||'','','SEDE:',c.sede||'',...Array(15).fill('')]);
+  /* Row 3: blank */
+  ws_data.push(Array(26).fill(''));
+  /* Row 4: headers */
+  ws_data.push(['N°','CÉDULA','NOMBRE COMPLETO','CARGO','SEDE','SECTOR','CELULAR',
     'DÍAS','HORAS','$ HORA','LIBRAS','$ AVANCE','BRUTO',
     'DESC.EXPRESO','DESC.BANCARIO','DESC.ANTICIPO','DESC.MULTA','DESC.OTROS',
     'TOTAL DESC.','NETO A PAGAR','BANCO','N° CUENTA','TITULAR','ESTADO','FECHA PAGO','OBS']);
-  // Data rows
+  /* Data rows */
   tAll.forEach(function(t,i){
-    const titular=t.nombreProp||t.nombre;
-    wsData.push([
-      i+1, t.cedula, t.nombre, c.cargo||'', c.sede||'', t.sector||'', t.celular||'',
+    var titular=t.nombreProp||t.nombre;
+    var estado=(t.estado==='pagado'?'PAGADO':'PENDIENTE');
+    ws_data.push([
+      i+1,
+      t.cedula,
+      t.nombre,
+      c.cargo||'',
+      c.sede||'',
+      t.sector||'',
+      t.celular||'',
       t.diasTrab||0,
-      +(t.hrsT||0).toFixed(2),       +(t.total_tu_h||0).toFixed(2),
-      +(t.lbsT||0).toFixed(2),       +(t.total_tu_p||0).toFixed(2),
+      +(t.hrsT||0).toFixed(2),
+      +(t.total_tu_h||0).toFixed(2),
+      +(t.lbsT||0).toFixed(2),
+      +(t.total_tu_p||0).toFixed(2),
       +(t.bruto||t.total_tu||0).toFixed(2),
-      +(t.desc_expreso||0).toFixed(2), +(t.desc_bancario||0).toFixed(2),
-      +(t.desc_anticipo||0).toFixed(2),+(t.desc_multa||0).toFixed(2),
-      +(t.desc_otros||0).toFixed(2),   +(t.total_desc||0).toFixed(2),
+      +(t.desc_expreso||0).toFixed(2),
+      +(t.desc_bancario||0).toFixed(2),
+      +(t.desc_anticipo||0).toFixed(2),
+      +(t.desc_multa||0).toFixed(2),
+      +(t.desc_otros||0).toFixed(2),
+      +(t.total_desc||0).toFixed(2),
       +(t.neto||0).toFixed(2),
-      t.banco||'', t.cuentaBanco||'', titular,
-      t.estado==='pagado'?'PAGADO':'PENDIENTE', t.fecha_pago||'', t.desc_obs||''
+      t.banco||'',
+      t.cuentaBanco||t.cuenta_banco||'',
+      titular,
+      estado,
+      t.fecha_pago||'',
+      t.desc_obs||''
     ]);
   });
-  // Totals row
-  const n=tAll.length+4; // data ends at row n
-  wsData.push(['TOTALES','','','','','','',
-    {f:'SUM(H4:H'+(n-1)+'}'},{f:'SUM(I4:I'+(n-1)+')'},
-    {f:'SUM(J4:J'+(n-1)+')'},{f:'SUM(K4:K'+(n-1)+')'},
-    {f:'SUM(L4:L'+(n-1)+')'},{f:'SUM(M4:M'+(n-1)+')'},
-    {f:'SUM(N4:N'+(n-1)+')'},{f:'SUM(O4:O'+(n-1)+')'},
-    {f:'SUM(P4:P'+(n-1)+')'},{f:'SUM(Q4:Q'+(n-1)+')'},
-    {f:'SUM(R4:R'+(n-1)+')'},{f:'SUM(S4:S'+(n-1)+')'},
-    {f:'SUM(T4:T'+(n-1)+')'},'','','','','',''
-  ]);
+  /* Totals row with SUM formulas */
+  var r1=5,r2=4+n; // Excel rows for data (1-based)
+  ws_data.push(['TOTALES','','','','','','',
+    {f:'SUM(H'+r1+':H'+r2+')'},
+    {f:'SUM(I'+r1+':I'+r2+')'},
+    {f:'SUM(J'+r1+':J'+r2+')'},
+    {f:'SUM(K'+r1+':K'+r2+')'},
+    {f:'SUM(L'+r1+':L'+r2+')'},
+    {f:'SUM(M'+r1+':M'+r2+')'},
+    {f:'SUM(N'+r1+':N'+r2+')'},
+    {f:'SUM(O'+r1+':O'+r2+')'},
+    {f:'SUM(P'+r1+':P'+r2+')'},
+    {f:'SUM(Q'+r1+':Q'+r2+')'},
+    {f:'SUM(R'+r1+':R'+r2+')'},
+    {f:'SUM(S'+r1+':S'+r2+')'},
+    {f:'SUM(T'+r1+':T'+r2+')'},
+    '','','','','','']);
 
-  const wb=XLSX.utils.book_new();
-  const ws=XLSX.utils.aoa_to_sheet(wsData);
-  // Column widths
-  ws['!cols']=[{wch:4},{wch:12},{wch:32},{wch:20},{wch:8},{wch:12},{wch:12},
+  var wb2=XLSX.utils.book_new();
+  var ws=XLSX.utils.aoa_to_sheet(ws_data);
+  /* Column widths */
+  ws['!cols']=[
+    {wch:4},{wch:13},{wch:34},{wch:22},{wch:8},{wch:12},{wch:13},
     {wch:5},{wch:8},{wch:8},{wch:8},{wch:8},{wch:10},
-    {wch:10},{wch:10},{wch:10},{wch:10},{wch:10},{wch:10},{wch:11},
-    {wch:12},{wch:12},{wch:32},{wch:10},{wch:12},{wch:16}];
-  // Freeze header rows
-  ws['!freeze']={xSplit:0,ySplit:3};
-  XLSX.utils.book_append_sheet(wb,'NÓMINA',ws);
-  XLSX.writeFile(wb,'NOMINA_'+c.id+'.xlsx');
-  toast('✓ Nómina exportada: NOMINA_'+c.id+'.xlsx');
+    {wch:11},{wch:12},{wch:11},{wch:10},{wch:10},{wch:11},{wch:12},
+    {wch:13},{wch:13},{wch:34},{wch:12},{wch:13},{wch:16}];
+  /* Merge title row A1:Z1 */
+  ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:25}}];
+  XLSX.utils.book_append_sheet(wb2,'NÓMINA',ws);
+  var fname='NOMINA_SOPASE_'+c.id+'.xlsx';
+  XLSX.writeFile(wb2,fname);
+  toast('✓ Exportado: '+fname);
 }
 
 /* ── svTar: guarda tarifa (TARIFA_HORA / TALLA_PROD) en Sheet ──────────── */
