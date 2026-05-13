@@ -1536,9 +1536,9 @@ function rmWA(){
   const neto=+(w.bruto-td).toFixed(2);
   const cargo=$d('cargo-input').value.trim()||'CUADRILLA';
   const {rango}=getDateRangeISO();
-  const SEP='━━━━━━━━━━━━━━━━━━━━';
+  const SEP='--------------------';
   const LIN='  ──────────────';
-  let msg=`*🦐 SUDAMERICANPACK — ROL DE PAGO*\n${SEP}\n`;
+  let msg='*SUDAMERICANPACK - ROL DE PAGO*\n'+SEP+'\n';
   msg+=`*Colaborador:* ${w.nombre}\n`;
   msg+=`*Cédula:*     ${w.cedula}\n`;
   msg+=`*Cargo:*      ${cargo}\n`;
@@ -1555,7 +1555,7 @@ function rmWA(){
   if(w.lineasP.length){
     msg+='\n*📦 PRODUCCIÓN*\n';
     const g={};w.lineasP.forEach(l=>{if(!g[l.fecha+l.det2])g[l.fecha+l.det2]={fecha:l.fecha,talla:l.det2,lb:0};g[l.fecha+l.det2].lb+=l.cant;});
-    Object.values(g).sort((a,b)=>a.fecha>b.fecha?1:-1).forEach(v=>{msg+=`  📦 ${v.fecha}  ${v.talla}  ${v.lb.toFixed(2)} lb\n`;});
+    Object.values(g).sort((a,b)=>a.fecha>b.fecha?1:-1).forEach(v=>{msg+=`  ${v.fecha}  ${v.talla}  ${v.lb.toFixed(2)} lb\n`;});
     msg+=LIN+'\n';msg+=`  *Total: ${w.lT.toFixed(2)} lb  →  $${(w.tP+w.bonusAvance).toFixed(2)}*\n`;
   }
   msg+='\n'+SEP+'\n';
@@ -1897,96 +1897,114 @@ function marcarTodosPagados(cierreId){
 
 // ── Exportar Nómina como XLSX ─────────────────────────────────────────────────
 function exportarNomina(cierreId){
-  if(typeof XLSX==='undefined'){toast('Libreria XLSX no disponible');return;}
+  if(typeof XLSX==='undefined'||!XLSX.utils){
+    toast('XLSX no disponible — verifica conexion a internet');
+    return;
+  }
   try{
     var hist=loadHist();
     var c=hist.find(function(x){return x.id===cierreId;});
     if(!c){toast('Cierre no encontrado');return;}
     var tAll=c.trabajadores||[];
-    if(!tAll.length){toast('Sin trabajadores en este cierre');return;}
+    if(!tAll.length){toast('Sin trabajadores');return;}
 
-    // Sums for totals row
+    // Safe value converter — prevents e.indexOf errors in XLSX
+    var safe=function(v,type){
+      if(v===null||v===undefined) return type==='n'?0:'';
+      if(type==='n'){var n=parseFloat(v);return isNaN(n)?0:Math.round(n*100)/100;}
+      return String(v);
+    };
+
+    // Compute totals
     var sD=0,sH=0,sHP=0,sL=0,sLP=0,sB=0,sE=0,sBn=0,sA=0,sM=0,sO=0,sTD=0,sN=0;
     tAll.forEach(function(t){
-      sD+=+(t.diasTrab||t.dias_trab||0);
-      sH+=+(t.hrsT||t.horas||0); sHP+=+(t.total_tu_h||t.pago_hora||0);
-      sL+=+(t.lbsT||t.libras||0); sLP+=+(t.total_tu_p||t.pago_avance||0);
-      sB+=+(t.bruto||t.total_tu||0); sE+=+(t.desc_expreso||0);
-      sBn+=+(t.desc_bancario||0); sA+=+(t.desc_anticipo||0);
-      sM+=+(t.desc_multa||0); sO+=+(t.desc_otros||0);
-      sTD+=+(t.total_desc||0); sN+=+(t.neto||0);
+      sD+=safe(t.diasTrab||t.dias_trab,'n');
+      sH+=safe(t.hrsT||t.horas,'n');       sHP+=safe(t.total_tu_h||t.pago_hora,'n');
+      sL+=safe(t.lbsT||t.libras,'n');      sLP+=safe(t.total_tu_p||t.pago_avance,'n');
+      sB+=safe(t.bruto||t.total_tu,'n');   sE+=safe(t.desc_expreso,'n');
+      sBn+=safe(t.desc_bancario,'n');      sA+=safe(t.desc_anticipo,'n');
+      sM+=safe(t.desc_multa,'n');          sO+=safe(t.desc_otros,'n');
+      sTD+=safe(t.total_desc,'n');         sN+=safe(t.neto,'n');
     });
-    var f2=function(v){return Math.round(+(v||0)*100)/100;};
+    var rn=function(v){return Math.round(v*100)/100;};
 
-    // Build data rows
-    var D=[];
-    var b26=function(){return new Array(26).fill('');};
-    var r1=b26(); r1[0]='SUDAMERICAN PACK - ROL DE PAGOS'; D.push(r1);
-    var r2=b26();
-    r2[0]='ROL:'; r2[1]=String(c.id);
-    r2[3]='PERIODO:'; r2[4]=String(c.rango||'');
-    r2[6]='CARGO:'; r2[7]=String(c.cargo||'');
-    r2[9]='SEDE:'; r2[10]=String(c.sede||'');
-    D.push(r2);
-    D.push(b26());
-    D.push(['N','CEDULA','NOMBRE COMPLETO','CARGO','SEDE','SECTOR','CELULAR',
-      'DIAS','HORAS','$ HORA','LIBRAS','$ AVANCE','BRUTO',
-      'DESC.EXPRESO','DESC.BANCARIO','DESC.ANTICIPO','DESC.MULTA','DESC.OTROS',
-      'TOTAL DESC.','NETO A PAGAR','BANCO','N CUENTA','TITULAR','ESTADO','FECHA PAGO','OBS']);
-
+    // Build rows — ALL values explicitly typed
+    var rows=[];
+    // Row 1: title (26 strings)
+    rows.push(['SUDAMERICAN PACK - ROL DE PAGOS','','','','','','','','','','','','','','','','','','','','','','','','','']);
+    // Row 2: meta (26 strings)
+    rows.push(['ROL',safe(c.id,'s'),'','PERIODO',safe(c.rango,'s'),'','CARGO',safe(c.cargo,'s'),'','SEDE',safe(c.sede,'s'),'','','','','','','','','','','','','','','']);
+    // Row 3: blank
+    rows.push(['','','','','','','','','','','','','','','','','','','','','','','','','','']);
+    // Row 4: headers (26 strings)
+    rows.push(['N','CEDULA','NOMBRE','CARGO','SEDE','SECTOR','CELULAR','DIAS','HORAS','PAGO HORA','LIBRAS','PAGO AVANCE','BRUTO','DESC EXPRESO','DESC BANCARIO','DESC ANTICIPO','DESC MULTA','DESC OTROS','TOTAL DESC','NETO A PAGAR','BANCO','N CUENTA','TITULAR','ESTADO','FECHA PAGO','OBS']);
+    // Data rows
     tAll.forEach(function(t,i){
-      // Get sector/celular from LISTADO if missing in saved data
       var li=getListado(t.cedula);
-      var sector=((t.sector&&t.sector.trim())||(li&&li.sector&&li.sector.trim())||'');
-      var celular=((t.celular&&t.celular.trim())||(li&&li.celular&&li.celular.trim())||'');
-      var cuenta=String(t.cuentaBanco||t.cuenta_banco||'');
-      var titular=t.nombreProp?String(t.nombreProp):(cuenta?'':String(t.nombre||''));
-      var row=b26();
-      var vals=[
-        i+1, String(t.cedula||''), String(t.nombre||''),
-        String(c.cargo||''), String(c.sede||''), sector, celular,
-        +(t.diasTrab||t.dias_trab||0),
-        f2(t.hrsT||t.horas), f2(t.total_tu_h||t.pago_hora),
-        f2(t.lbsT||t.libras), f2(t.total_tu_p||t.pago_avance),
-        f2(t.bruto||t.total_tu),
-        f2(t.desc_expreso), f2(t.desc_bancario),
-        f2(t.desc_anticipo), f2(t.desc_multa), f2(t.desc_otros),
-        f2(t.total_desc), f2(t.neto),
-        String(t.banco||''), cuenta, titular,
+      var sect=safe((t.sector&&t.sector.trim())||(li&&li.sector&&li.sector.trim()),'s');
+      var cel=safe((t.celular&&t.celular.trim())||(li&&li.celular&&li.celular.trim()),'s');
+      var cta=safe(t.cuentaBanco||t.cuenta_banco,'s');
+      var tit=safe(t.nombreProp||(cta?'':t.nombre),'s');
+      rows.push([
+        i+1,                          // N (number)
+        safe(t.cedula,'s'),           // CEDULA
+        safe(t.nombre,'s'),           // NOMBRE
+        safe(c.cargo,'s'),            // CARGO
+        safe(c.sede,'s'),             // SEDE
+        sect,                          // SECTOR
+        cel,                           // CELULAR
+        safe(t.diasTrab||t.dias_trab,'n'),
+        safe(t.hrsT||t.horas,'n'),
+        safe(t.total_tu_h||t.pago_hora,'n'),
+        safe(t.lbsT||t.libras,'n'),
+        safe(t.total_tu_p||t.pago_avance,'n'),
+        safe(t.bruto||t.total_tu,'n'),
+        safe(t.desc_expreso,'n'),
+        safe(t.desc_bancario,'n'),
+        safe(t.desc_anticipo,'n'),
+        safe(t.desc_multa,'n'),
+        safe(t.desc_otros,'n'),
+        safe(t.total_desc,'n'),
+        safe(t.neto,'n'),
+        safe(t.banco,'s'),
+        cta,
+        tit,
         t.estado==='pagado'?'PAGADO':'PENDIENTE',
-        String(t.fecha_pago||''), String(t.desc_obs||'')
-      ];
-      for(var vi=0;vi<vals.length;vi++) row[vi]=vals[vi];
-      D.push(row);
+        safe(t.fecha_pago,'s'),
+        safe(t.desc_obs,'s')
+      ]);
     });
+    // Totals
+    rows.push(['TOTALES','','','','','','',
+      sD,rn(sH),rn(sHP),rn(sL),rn(sLP),rn(sB),
+      rn(sE),rn(sBn),rn(sA),rn(sM),rn(sO),rn(sTD),rn(sN),
+      '','','','','','']);
 
-    var totRow=b26();
-    totRow[0]='TOTALES';
-    var tv=[sD,f2(sH),f2(sHP),f2(sL),f2(sLP),f2(sB),f2(sE),f2(sBn),f2(sA),f2(sM),f2(sO),f2(sTD),f2(sN)];
-    for(var ti=0;ti<tv.length;ti++) totRow[7+ti]=tv[ti];
-    D.push(totRow);
-
-    // Create workbook
     var wb=XLSX.utils.book_new();
-    var ws=XLSX.utils.aoa_to_sheet(D);
-    ws['!cols']=[{wch:4},{wch:13},{wch:34},{wch:22},{wch:8},{wch:12},{wch:13},
-      {wch:5},{wch:8},{wch:8},{wch:8},{wch:8},{wch:10},
-      {wch:11},{wch:12},{wch:11},{wch:10},{wch:10},{wch:11},{wch:12},
-      {wch:13},{wch:13},{wch:34},{wch:12},{wch:13},{wch:16}];
+    var ws=XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols']=[{wch:4},{wch:13},{wch:32},{wch:20},{wch:8},{wch:12},{wch:13},
+      {wch:5},{wch:7},{wch:8},{wch:8},{wch:9},{wch:10},
+      {wch:10},{wch:11},{wch:10},{wch:9},{wch:9},{wch:10},{wch:11},
+      {wch:12},{wch:12},{wch:30},{wch:10},{wch:12},{wch:14}];
     XLSX.utils.book_append_sheet(wb,'NOMINA',ws);
 
-    // Download via Blob (more reliable than XLSX.writeFile in some browsers)
-    var wbout=XLSX.write(wb,{bookType:'xlsx',type:'array'});
-    var blob=new Blob([wbout],{type:'application/octet-stream'});
-    var url=URL.createObjectURL(blob);
-    var a=document.createElement('a');
-    a.href=url; a.download='NOMINA_SOPASE_'+c.id+'.xlsx';
-    document.body.appendChild(a); a.click();
-    setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},1000);
-    toast('Nomina descargada: '+tAll.length+' trabajadores');
+    // Use XLSX.writeFile (most compatible)
+    try{
+      XLSX.writeFile(wb,'NOMINA_'+c.id+'.xlsx');
+    }catch(e2){
+      // Fallback: Blob download
+      var out=XLSX.write(wb,{bookType:'xlsx',type:'array'});
+      var blob=new Blob([out],{type:'application/octet-stream'});
+      var url=URL.createObjectURL(blob);
+      var a=document.createElement('a');
+      a.href=url;a.download='NOMINA_'+c.id+'.xlsx';
+      document.body.appendChild(a);a.click();
+      setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},500);
+    }
+    toast('Nomina exportada: '+tAll.length+' trabajadores');
   }catch(err){
-    console.error('exportarNomina error:',err);
-    toast('Error al exportar: '+err.message);
+    console.error('exportarNomina:',err);
+    toast('Error: '+err.message+' | Tipo: '+(typeof err.message));
   }
 }
 
@@ -2141,7 +2159,7 @@ function _openWAWithData(t,c,driveUrl){
   var neto=+(t.neto||0).toFixed(2);
   var bruto=+(t.bruto||t.total_tu||0).toFixed(2);
   var desc=+(t.total_desc||0).toFixed(2);
-  var SEP='━━━━━━━━━━━━━━━━━━━━━━━━━';
+  var SEP='-------------------------';
   var msg='*'+t.nombre+'*\n';
   msg+=SEP+'\n';
   msg+='📅 Período: '+c.rango+'\n';
