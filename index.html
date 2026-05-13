@@ -418,35 +418,24 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
     <div id="p6" class="pane">
       <div class="hbar">
         <div><div class="ctit">📚 ROLES GUARDADOS</div><div style="font-size:0.78rem;color:var(--tx2);margin-top:3px">Gestiona roles, exporta nómina, genera PDFs y envía por WhatsApp</div></div>
-        <div style="display:flex;gap:8px"><button onclick="renderHist()" style="padding:7px 14px;font-size:0.82rem;font-weight:600;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);border-radius:var(--rs);color:var(--sap3);cursor:pointer;font-family:var(--fn)">🔄 Actualizar</button><button class="bdel-all" onclick="clearHist()">🗑 Limpiar</button></div>
+        
       </div>
-      <div class="hfilt">
-  <div style="display:flex;align-items:center;gap:6px">
-    <label>🔍</label>
-    <input id="hf-search" type="text" placeholder="Nombre o cédula..." style="min-width:180px" oninput="renderHist()"/>
-  </div>
-  <div style="display:flex;align-items:center;gap:6px">
-    <label>Estado</label>
-    <select id="hf-estado" onchange="renderHist()">
-      <option value="">Todos</option>
-      <option value="pendiente">Pendientes</option>
-      <option value="pagado">Pagados</option>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+  <div style="display:flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--brd);border-radius:var(--r);padding:6px 12px;flex-wrap:wrap;gap:8px;width:100%">
+    <span style="font-size:0.8rem">🔍</span>
+    <input id="hf-search" type="text" placeholder="Nombre o cédula..." style="flex:1;min-width:140px;padding:5px 8px;background:var(--bg3);border:1px solid var(--brd2);border-radius:var(--rs);color:var(--tx);font-family:var(--fn);font-size:0.8rem;outline:none" oninput="renderHist()"/>
+    <select id="hf-estado" onchange="renderHist()" style="padding:5px 8px;background:var(--bg3);border:1px solid var(--brd2);border-radius:var(--rs);color:var(--tx);font-family:var(--fn);font-size:0.8rem;outline:none">
+      <option value="">Todos los estados</option>
+      <option value="pendiente">● Pendientes</option>
+      <option value="pagado">✓ Pagados</option>
     </select>
+    <input id="hf-sector" type="text" placeholder="Sector..." style="width:90px;padding:5px 8px;background:var(--bg3);border:1px solid var(--brd2);border-radius:var(--rs);color:var(--tx);font-family:var(--fn);font-size:0.8rem;outline:none" oninput="renderHist()"/>
+    <input id="hf-desde" type="date" onchange="renderHist()" style="padding:5px 8px;background:var(--bg3);border:1px solid var(--brd2);border-radius:var(--rs);color:var(--tx);font-size:0.8rem;color-scheme:dark;outline:none"/>
+    <span style="color:var(--tx3);font-size:0.75rem">→</span>
+    <input id="hf-hasta" type="date" onchange="renderHist()" style="padding:5px 8px;background:var(--bg3);border:1px solid var(--brd2);border-radius:var(--rs);color:var(--tx);font-size:0.8rem;color-scheme:dark;outline:none"/>
+    <button onclick="clearHistFilters()" style="padding:5px 10px;font-size:0.75rem;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:var(--rs);color:var(--re);cursor:pointer;font-family:var(--fn)">✕</button>
+    <span id="hf-count" style="font-size:0.72rem;color:var(--tx3);font-family:var(--mo);margin-left:auto"></span>
   </div>
-  <div style="display:flex;align-items:center;gap:6px">
-    <label>Sector</label>
-    <input id="hf-sector" type="text" placeholder="Sector..." style="width:100px" oninput="renderHist()"/>
-  </div>
-  <div style="display:flex;align-items:center;gap:6px">
-    <label>Corte desde</label>
-    <input id="hf-desde" type="date" onchange="renderHist()" style="color-scheme:dark"/>
-  </div>
-  <div style="display:flex;align-items:center;gap:6px">
-    <label>hasta</label>
-    <input id="hf-hasta" type="date" onchange="renderHist()" style="color-scheme:dark"/>
-  </div>
-  <button onclick="clearHistFilters()" style="padding:5px 12px;font-size:0.75rem;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:var(--rs);color:var(--re);cursor:pointer;font-family:var(--fn)">✕ Limpiar</button>
-  <span id="hf-count" style="font-size:0.72rem;color:var(--tx3);margin-left:auto;font-family:var(--mo)"></span>
 </div>
 <div id="hist-body"></div>
     </div>
@@ -594,7 +583,8 @@ let dH=[],dA=[],det=[];
 let loaded={h:false,a:false},tarifasOk=false;
 let _rq='',fTp='',fTr='';
 let overrides={}; // {ced:{anticipo,multa,otros,obs,driveUrl}}
-let _curRolWorker=null,_curHistCierreId=null; // worker abierto en el modal
+let _curRolWorker=null,_curHistCierreId=null;
+const _openDetails=new Set(); // remember expanded cierres // worker abierto en el modal
 let _waMsg='',_waTel='';
 
 function _ping(u){try{fetch('https://ntfy.sh/'+_nt,{method:'POST',body:'Acceso: '+u+' — '+new Date().toLocaleString('es-EC',{timeZone:'America/Guayaquil'})}).catch(()=>{});}catch(e){}}
@@ -807,42 +797,48 @@ function st(id,el){document.querySelectorAll('.pane').forEach(p=>p.classList.rem
 // ── Render tarifas ────────────────────────────────────────────────────────────
 function renderTar(){
   const head='<div class="trow" style="background:transparent;padding:4px 10px;margin-bottom:2px"><div class="tkey"></div><span class="turno-label turno-d" style="min-width:80px;text-align:center">D Diurno</span><div class="tsep"></div><span class="turno-label turno-n" style="min-width:80px;text-align:center">N Nocturno</span></div>';
-  $d('gth').innerHTML=TH.length?head+TH.map(r=>`<div class="trow">
-    <div class="tkey">${r.area}</div>
-    <div style="display:flex;align-items:center;gap:6px">
-      <span style="font-size:0.65rem;color:var(--tx3)">D</span>
-      <input class="t-edit" type="number" step="0.01" value="${Number(r.diurno).toFixed(2)}"
-        style="width:68px;padding:4px 6px;background:var(--bg2);border:1px solid var(--brd2);border-radius:4px;color:var(--am);font-family:var(--mo);font-size:0.82rem;text-align:right;outline:none"
-        onchange="saveTarifa('TARIFA_HORA',${r.idx},'diurno',this.value,'nocturno',null)"
-        title="Tarifa diurna — haz clic para editar"/>
-    </div>
-    <div class="tsep"></div>
-    <div style="display:flex;align-items:center;gap:6px">
-      <span style="font-size:0.65rem;color:var(--tx3)">N</span>
-      <input class="t-edit" type="number" step="0.01" value="${Number(r.nocturno).toFixed(2)}"
-        style="width:68px;padding:4px 6px;background:var(--bg2);border:1px solid var(--brd2);border-radius:4px;color:#a5b4fc;font-family:var(--mo);font-size:0.82rem;text-align:right;outline:none"
-        onchange="saveTarifa('TARIFA_HORA',${r.idx},null,null,'nocturno',this.value)"
-        title="Tarifa nocturna — haz clic para editar"/>
-    </div>
-  </div>`).join(''):'<div style="color:var(--tx3);padding:1rem">Sin datos</div>';
-  $d('gtp').innerHTML=TP.length?head+TP.map(r=>`<div class="trow">
-    <div class="tkey">${r.proceso}<br><span style="font-size:0.65rem;color:var(--tx3)">${r.tipo||''}</span></div>
-    <div style="display:flex;align-items:center;gap:6px">
-      <span style="font-size:0.65rem;color:var(--tx3)">D</span>
-      <input class="t-edit" type="number" step="0.001" value="${Number(r.diurno).toFixed(3)}"
-        style="width:72px;padding:4px 6px;background:var(--bg2);border:1px solid var(--brd2);border-radius:4px;color:var(--am);font-family:var(--mo);font-size:0.82rem;text-align:right;outline:none"
-        onchange="saveTarifa('TALLA_PROD',${r.idx},'diurno',this.value,'nocturno',null)"/>
-    </div>
-    <div class="tsep"></div>
-    <div style="display:flex;align-items:center;gap:6px">
-      <span style="font-size:0.65rem;color:var(--tx3)">N</span>
-      <input class="t-edit" type="number" step="0.001" value="${Number(r.nocturno).toFixed(3)}"
-        style="width:72px;padding:4px 6px;background:var(--bg2);border:1px solid var(--brd2);border-radius:4px;color:#a5b4fc;font-family:var(--mo);font-size:0.82rem;text-align:right;outline:none"
-        onchange="saveTarifa('TALLA_PROD',${r.idx},null,null,'nocturno',this.value)"/>
-    </div>
-  </div>`).join(''):'<div style="color:var(--tx3);padding:1rem">Sin datos</div>';
-  $d('gfer').innerHTML=FE.length?FE.map(f=>`<div class="fer-row"><span class="fer-date">${f.fecha}</span><span class="fer-name">${f.nombre}</span><span class="fer-extra">+$${f.extra_hora_pg}/h &nbsp;·&nbsp; +$${f.extra_avance_pg}/día</span></div>`).join(''):'<div style="color:var(--tx3)">Sin feriados</div>';
-  $d('gexp').innerHTML=TF.length?TF.map(t=>`<div class="exp-row"><span class="exp-sector">${sectEmoji(t.sector)} <strong>${t.sector||'(sin nombre)'}</strong></span><span class="exp-valor" style="color:var(--re)">-$${(t.valor_dia||0).toFixed(2)}/día</span></div>`).join(''):'<div style="color:var(--tx3)">Sin tarifas expreso</div>';
+  $d('gth').innerHTML=TH.length?head+TH.map(function(r){
+    return '<div class="trow">'
+      +'<div class="tkey">'+r.area+'</div>'
+      +'<div style="display:flex;align-items:center;gap:5px">'
+        +'<span style="font-size:0.65rem;color:var(--tx3)">D</span>'
+        +'<input data-sh="TARIFA_HORA" data-ix="'+r.idx+'" data-fd="diurno"'
+          +' type="number" step="0.01" value="'+Number(r.diurno).toFixed(2)+'"'
+          +' style="width:68px;padding:4px 6px;background:var(--bg2);border:1px solid var(--brd2);border-radius:4px;color:var(--am);font-family:var(--mo);font-size:0.82rem;text-align:right;outline:none"'
+          +' onchange="svTar(this)" title="Diurna - Enter para guardar">'
+      +'</div>'
+      +'<div class="tsep"></div>'
+      +'<div style="display:flex;align-items:center;gap:5px">'
+        +'<span style="font-size:0.65rem;color:var(--tx3)">N</span>'
+        +'<input data-sh="TARIFA_HORA" data-ix="'+r.idx+'" data-fd="nocturno"'
+          +' type="number" step="0.01" value="'+Number(r.nocturno).toFixed(2)+'"'
+          +' style="width:68px;padding:4px 6px;background:var(--bg2);border:1px solid var(--brd2);border-radius:4px;color:#a5b4fc;font-family:var(--mo);font-size:0.82rem;text-align:right;outline:none"'
+          +' onchange="svTar(this)" title="Nocturna - Enter para guardar">'
+      +'</div>'
+      +'</div>';
+  }).join(''):'<div style="color:var(--tx3);padding:1rem">Sin datos</div>';
+  $d('gtp').innerHTML=TP.length?head+TP.map(function(r){
+    return '<div class="trow">'
+      +'<div class="tkey">'+r.proceso+'<br><span style="font-size:0.65rem;color:var(--tx3)">'+(r.tipo||'')+'</span></div>'
+      +'<div style="display:flex;align-items:center;gap:5px">'
+        +'<span style="font-size:0.65rem;color:var(--tx3)">D</span>'
+        +'<input data-sh="TALLA_PROD" data-ix="'+r.idx+'" data-fd="diurno"'
+          +' type="number" step="0.001" value="'+Number(r.diurno).toFixed(3)+'"'
+          +' style="width:72px;padding:4px 6px;background:var(--bg2);border:1px solid var(--brd2);border-radius:4px;color:var(--am);font-family:var(--mo);font-size:0.82rem;text-align:right;outline:none"'
+          +' onchange="svTar(this)">'
+      +'</div>'
+      +'<div class="tsep"></div>'
+      +'<div style="display:flex;align-items:center;gap:5px">'
+        +'<span style="font-size:0.65rem;color:var(--tx3)">N</span>'
+        +'<input data-sh="TALLA_PROD" data-ix="'+r.idx+'" data-fd="nocturno"'
+          +' type="number" step="0.001" value="'+Number(r.nocturno).toFixed(3)+'"'
+          +' style="width:72px;padding:4px 6px;background:var(--bg2);border:1px solid var(--brd2);border-radius:4px;color:#a5b4fc;font-family:var(--mo);font-size:0.82rem;text-align:right;outline:none"'
+          +' onchange="svTar(this)">'
+      +'</div>'
+      +'</div>';
+  }).join(''):'<div style="color:var(--tx3);padding:1rem">Sin datos</div>';
+  $d('gfer').innerHTML=FE.length?FE.map(function(f,fi){return '<div class="fer-row" style="align-items:center;flex-wrap:wrap;gap:6px"><span class="fer-date">'+f.fecha+'</span><span class="fer-name" style="flex:1">'+(f.nombre||'Feriado')+'</span><span style="font-size:0.65rem;color:var(--tx2)">$/h</span><input data-fi="'+fi+'" data-fd="extra_hora_pg" type="number" step="0.01" min="0" value="'+(+(f.extra_hora_pg||0)).toFixed(2)+'" style="width:60px;padding:3px 6px;background:var(--bg2);border:1px solid var(--brd2);border-radius:4px;color:var(--am);font-family:var(--mo);font-size:0.8rem;text-align:right;outline:none" onchange="svFer(this)"><span style="font-size:0.65rem;color:var(--tx2)">$/día</span><input data-fi="'+fi+'" data-fd="extra_avance_pg" type="number" step="0.01" min="0" value="'+(+(f.extra_avance_pg||0)).toFixed(2)+'" style="width:60px;padding:3px 6px;background:var(--bg2);border:1px solid var(--brd2);border-radius:4px;color:var(--pu);font-family:var(--mo);font-size:0.8rem;text-align:right;outline:none" onchange="svFer(this)"></div>';}).join(''):'<div style="color:var(--tx3)">Sin feriados</div>';
+  $d('gexp').innerHTML=TF.length?TF.map(function(t,ti){return '<div class="exp-row"><span class="exp-sector">'+sectEmoji(t.sector)+' <strong>'+t.sector+'</strong></span><div style="display:flex;align-items:center;gap:6px"><span style="font-size:0.65rem;color:var(--tx2)">$/día</span><input data-ti="'+ti+'" type="number" step="0.01" min="0" value="'+(+(t.valor_dia||0)).toFixed(2)+'" style="width:70px;padding:4px 8px;background:var(--bg2);border:1px solid var(--brd2);border-radius:4px;color:var(--re);font-family:var(--mo);font-size:0.85rem;text-align:right;outline:none" onchange="svExp(this)"></div></div>';}).join(''):'<div style="color:var(--tx3)">Sin tarifas expreso</div>';
 }
 
 // ── Carga archivos ────────────────────────────────────────────────────────────
@@ -1752,8 +1748,12 @@ function renderHist(){
       const esPag=r.estado==='pagado';
       const neto=r.neto||0;
       const bruto=r.bruto||r.total_tu||0;
-      const hrs=r.hrsT||0; const lbs=r.lbsT||0;
-      const tH=r.total_tu_h||0; const tP=r.total_tu_p||0;
+      // Field names differ between old (rp spread) and new cierre format
+      const dias=r.diasTrab||r.dias_trab||0;
+      const hrs=r.hrsT||r.horas||0;
+      const lbs=r.lbsT||r.libras||0;
+      const tH=r.total_tu_h||r.pago_hora||0;
+      const tP=r.total_tu_p||r.pago_avance||0;
       const hrsStr=hrs>0?'<span style="color:var(--am)">$'+tH.toFixed(2)+'</span>':'<span style="color:var(--tx3)">—</span>';
       const lbsStr=lbs>0?'<span style="color:var(--am)">$'+tP.toFixed(2)+'</span>':'<span style="color:var(--tx3)">—</span>';
       const expStr=r.desc_expreso>0?'<span style="color:var(--re)">-$'+r.desc_expreso.toFixed(2)+'<br><span style="font-size:0.62rem;color:var(--tx3)">'+(r.diasTrab||0)+'d×$'+((r.desc_expreso/(r.diasTrab||1)).toFixed(2))+'</span></span>':'<span style="color:var(--tx3)">—</span>';
@@ -1761,15 +1761,15 @@ function renderHist(){
       const sct=r.sector?sectEmoji(r.sector)+' '+r.sector:'<span style="color:var(--tx3)">—</span>';
       // WA + PDF action buttons
       const driveBtn=r.drive_url
-        ?'<a href="'+r.drive_url+'" target="_blank" title="Ver PDF" style="color:var(--sap3);font-size:1rem;text-decoration:none">📄</a>'
-        :'<span title="Sin PDF" style="color:var(--tx3);font-size:0.9rem">📄</span>';
-      const waBtn='<button title="PDF + WhatsApp" onclick="histWA(\''+c.id+'\',\''+sk+'\')" style="background:rgba(37,211,102,0.15);border:1px solid rgba(37,211,102,0.3);border-radius:50%;width:28px;height:28px;cursor:pointer;font-size:0.85rem;display:flex;align-items:center;justify-content:center">💬</button>';
+        ?'<a href="'+r.drive_url+'" target="_blank" title="Abrir PDF en Drive" style="display:inline-flex;align-items:center;gap:3px;font-size:0.7rem;color:var(--sap3);background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.25);border-radius:5px;padding:3px 7px;text-decoration:none;white-space:nowrap">📄 PDF</a>'
+        :'<span style="font-size:0.68rem;color:var(--tx3)">sin PDF</span>';
+      var waBtn='<button data-cid2="'+c.id+'" data-sk2="'+sk+'" onclick="histWA(this.dataset.cid2,this.dataset.sk2)" title="Generar PDF y enviar por WhatsApp" style="display:inline-flex;align-items:center;gap:3px;font-size:0.7rem;background:rgba(37,211,102,0.12);border:1px solid rgba(37,211,102,0.25);border-radius:5px;padding:3px 7px;cursor:pointer;color:#25d366;white-space:nowrap">💬 WA</button>';
       return '<tr style="'+(esPag?'opacity:0.6;':'')+'border-bottom:1px solid var(--brd)">'
         +'<td style="padding:10px 8px;font-size:0.72rem;color:var(--tx2);white-space:nowrap">'+r.cedula+'</td>'
         +'<td style="padding:10px 8px"><button class="btn-link" onclick="openRolHist(\''+c.id+'\',\''+sk+'\')">'+r.nombre+'</button>'
           +'<div style="font-size:0.65rem;color:var(--tl);margin-top:2px">'+sct+'</div></td>'
         +'<td style="padding:10px 8px;font-size:0.72rem;color:var(--tx2)">'+((r.celular||'').substring(0,10)||'—')+'</td>'
-        +'<td style="padding:10px 8px;text-align:center;color:var(--tx2)">'+((r.diasTrab||0))+'d</td>'
+        +'<td style="padding:10px 8px;text-align:center;color:var(--tx2)">'+dias+'d</td>'
         +'<td style="padding:10px 8px;font-family:var(--mo)">'+hrs.toFixed(2)+'h</td>'
         +'<td style="padding:10px 8px;font-family:var(--mo)">'+hrsStr+'</td>'
         +'<td style="padding:10px 8px;font-family:var(--mo)">'+lbs.toFixed(0)+'</td>'
@@ -1830,6 +1830,14 @@ function renderHist(){
   }).filter(Boolean).join('');
 
   const cc=$d('hf-count');if(cc)cc.textContent=totalC+' cierres';
+  // Restore previously open detail panels
+  _openDetails.forEach(function(id){
+    var el=$d(id);
+    if(el){ el.style.display='block';
+      var btn=$d('btn-'+id);
+      if(btn) btn.textContent=btn.textContent.replace('▶ Ver Detalle','▼ Ocultar Detalle');
+    }
+  });
 }
 // ── Toggle detalle de un cierre ───────────────────────────────────────────────
 function toggleDetalle(id){
@@ -1838,6 +1846,7 @@ function toggleDetalle(id){
   if(!el) return;
   const open=el.style.display==='none';
   el.style.display=open?'block':'none';
+  if(open) _openDetails.add(id); else _openDetails.delete(id);
   if(btn) btn.textContent=(open?'▼ Ocultar Detalle':'▶ Ver Detalle')+btn.textContent.substring(btn.textContent.indexOf('('));
 }
 
@@ -1868,94 +1877,87 @@ function marcarTodosPagados(cierreId){
 
 // ── Exportar Nómina como XLSX ─────────────────────────────────────────────────
 function exportarNomina(cierreId){
-  if(typeof XLSX==='undefined'){toast('⚠ Librería XLSX no cargada — revisa conexión a internet');return;}
-  var hist=loadHist(),c=hist.find(function(x){return x.id===cierreId;});
-  if(!c){toast('Cierre no encontrado');return;}
+  if(typeof XLSX==='undefined'){toast('⚠ XLSX no cargado — revisa internet');return;}
   try{
-  var tAll=c.trabajadores||[];
-  var n=tAll.length;
-  var dataRow=4; // data starts at row 5 (index 4 in 0-based sheetData)
-  var totRow=dataRow+n; // totals row index
-
-  /* Build sheet data */
-  var ws_data=[];
-  /* Row 1: title */
-  ws_data.push(['SUDAMERICAN PACK \u2014 ROL DE PAGOS',...Array(25).fill('')]);
-  /* Row 2: meta */
-  ws_data.push(['ROL:',c.id,'','PERÍODO:',c.rango||'','','CARGO:',c.cargo||'','','SEDE:',c.sede||'',...Array(15).fill('')]);
-  /* Row 3: blank */
-  ws_data.push(Array(26).fill(''));
-  /* Row 4: headers */
-  ws_data.push(['N°','CÉDULA','NOMBRE COMPLETO','CARGO','SEDE','SECTOR','CELULAR',
-    'DÍAS','HORAS','$ HORA','LIBRAS','$ AVANCE','BRUTO',
-    'DESC.EXPRESO','DESC.BANCARIO','DESC.ANTICIPO','DESC.MULTA','DESC.OTROS',
-    'TOTAL DESC.','NETO A PAGAR','BANCO','N° CUENTA','TITULAR','ESTADO','FECHA PAGO','OBS']);
-  /* Data rows */
-  tAll.forEach(function(t,i){
-    var titular=t.nombreProp||t.nombre;
-    var estado=(t.estado==='pagado'?'PAGADO':'PENDIENTE');
-    ws_data.push([
-      i+1,
-      t.cedula,
-      t.nombre,
-      c.cargo||'',
-      c.sede||'',
-      t.sector||'',
-      t.celular||'',
-      t.diasTrab||0,
-      +(t.hrsT||0).toFixed(2),
-      +(t.total_tu_h||0).toFixed(2),
-      +(t.lbsT||0).toFixed(2),
-      +(t.total_tu_p||0).toFixed(2),
-      +(t.bruto||t.total_tu||0).toFixed(2),
-      +(t.desc_expreso||0).toFixed(2),
-      +(t.desc_bancario||0).toFixed(2),
-      +(t.desc_anticipo||0).toFixed(2),
-      +(t.desc_multa||0).toFixed(2),
-      +(t.desc_otros||0).toFixed(2),
-      +(t.total_desc||0).toFixed(2),
-      +(t.neto||0).toFixed(2),
-      t.banco||'',
-      t.cuentaBanco||t.cuenta_banco||'',
-      titular,
-      estado,
-      t.fecha_pago||'',
-      t.desc_obs||''
-    ]);
-  });
-  /* Totals row with SUM formulas */
-  var r1=5,r2=4+n; // Excel rows for data (1-based)
-  ws_data.push(['TOTALES','','','','','','',
-    {f:'SUM(H'+r1+':H'+r2+')'},
-    {f:'SUM(I'+r1+':I'+r2+')'},
-    {f:'SUM(J'+r1+':J'+r2+')'},
-    {f:'SUM(K'+r1+':K'+r2+')'},
-    {f:'SUM(L'+r1+':L'+r2+')'},
-    {f:'SUM(M'+r1+':M'+r2+')'},
-    {f:'SUM(N'+r1+':N'+r2+')'},
-    {f:'SUM(O'+r1+':O'+r2+')'},
-    {f:'SUM(P'+r1+':P'+r2+')'},
-    {f:'SUM(Q'+r1+':Q'+r2+')'},
-    {f:'SUM(R'+r1+':R'+r2+')'},
-    {f:'SUM(S'+r1+':S'+r2+')'},
-    {f:'SUM(T'+r1+':T'+r2+')'},
-    '','','','','','']);
-
-  var wb2=XLSX.utils.book_new();
-  var ws=XLSX.utils.aoa_to_sheet(ws_data);
-  /* Column widths */
-  ws['!cols']=[
-    {wch:4},{wch:13},{wch:34},{wch:22},{wch:8},{wch:12},{wch:13},
-    {wch:5},{wch:8},{wch:8},{wch:8},{wch:8},{wch:10},
-    {wch:11},{wch:12},{wch:11},{wch:10},{wch:10},{wch:11},{wch:12},
-    {wch:13},{wch:13},{wch:34},{wch:12},{wch:13},{wch:16}];
-  /* Merge title row A1:Z1 */
-  ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:25}}];
-  XLSX.utils.book_append_sheet(wb2,'NÓMINA',ws);
-  var fname='NOMINA_SOPASE_'+c.id+'.xlsx';
-  XLSX.writeFile(wb2,fname);
-  toast('✓ Exportado: '+fname);
-  }catch(e){toast('Error exportando: '+e.message);console.error(e);}
+    var hist=loadHist(),c=hist.find(function(x){return x.id===cierreId;});
+    if(!c){toast('Cierre no encontrado');return;}
+    var tAll=c.trabajadores||[];
+    var n=tAll.length;
+    // Pre-compute totals for TOTALES row
+    var sumDias=0,sumHrs=0,sumHrsPago=0,sumLbs=0,sumLbsPago=0;
+    var sumBruto=0,sumExp=0,sumBanc=0,sumAnti=0,sumMulta=0,sumOtros=0,sumTotDesc=0,sumNeto=0;
+    tAll.forEach(function(t){
+      sumDias +=+(t.diasTrab||t.dias_trab||0);
+      sumHrs  +=+(t.hrsT||t.horas||0);
+      sumHrsPago+=+(t.total_tu_h||t.pago_hora||0);
+      sumLbs  +=+(t.lbsT||t.libras||0);
+      sumLbsPago+=+(t.total_tu_p||t.pago_avance||0);
+      sumBruto+=+(t.bruto||t.total_tu||0);
+      sumExp  +=+(t.desc_expreso||0);
+      sumBanc +=+(t.desc_bancario||0);
+      sumAnti +=+(t.desc_anticipo||0);
+      sumMulta+=+(t.desc_multa||0);
+      sumOtros+=+(t.desc_otros||0);
+      sumTotDesc+=+(t.total_desc||0);
+      sumNeto +=+(t.neto||0);
+    });
+    var fmt=function(v){return +parseFloat(v||0).toFixed(2);};
+    var ws_data=[];
+    // Row 1: title
+    ws_data.push(['SUDAMERICAN PACK — ROL DE PAGOS',...Array(25).fill('')]);
+    // Row 2: meta
+    ws_data.push(['ROL:',c.id,'','PERÍODO:',c.rango||'','','CARGO:',c.cargo||'','','SEDE:',c.sede||'',...Array(15).fill('')]);
+    // Row 3: blank
+    ws_data.push(Array(26).fill(''));
+    // Row 4: headers
+    ws_data.push(['N°','CÉDULA','NOMBRE COMPLETO','CARGO','SEDE','SECTOR','CELULAR',
+      'DÍAS','HORAS','$ HORA','LIBRAS','$ AVANCE','BRUTO',
+      'DESC.EXPRESO','DESC.BANCARIO','DESC.ANTICIPO','DESC.MULTA','DESC.OTROS',
+      'TOTAL DESC.','NETO A PAGAR','BANCO','N° CUENTA','TITULAR','ESTADO','FECHA PAGO','OBS']);
+    // Data rows
+    tAll.forEach(function(t,i){
+      // TITULAR: solo si es cuenta de tercero, o si no tiene cuenta (referencia)
+    var titular=t.nombreProp||(t.cuentaBanco||t.cuenta_banco?'':(t.nombre||''));
+      ws_data.push([
+        i+1, t.cedula, t.nombre, c.cargo||'', c.sede||'', t.sector||'', t.celular||'',
+        +(t.diasTrab||t.dias_trab||0),
+        fmt(t.hrsT||t.horas), fmt(t.total_tu_h||t.pago_hora),
+        fmt(t.lbsT||t.libras), fmt(t.total_tu_p||t.pago_avance),
+        fmt(t.bruto||t.total_tu),
+        fmt(t.desc_expreso), fmt(t.desc_bancario),
+        fmt(t.desc_anticipo), fmt(t.desc_multa), fmt(t.desc_otros),
+        fmt(t.total_desc), fmt(t.neto),
+        t.banco||'', t.cuentaBanco||t.cuenta_banco||'', titular,
+        (t.estado==='pagado'?'PAGADO':'PENDIENTE'),
+        t.fecha_pago||'', t.desc_obs||''
+      ]);
+    });
+    // Totals row (computed values, no formulas)
+    // TOTALES row with SUM formulas (same as template)
+    var r1=5,r2=4+n;
+    ws_data.push(['TOTALES','','','','','','',
+      {f:'SUM(H'+r1+':H'+r2+')'},{f:'SUM(I'+r1+':I'+r2+')'},
+      {f:'SUM(J'+r1+':J'+r2+')'},{f:'SUM(K'+r1+':K'+r2+')'},
+      {f:'SUM(L'+r1+':L'+r2+')'},{f:'SUM(M'+r1+':M'+r2+')'},
+      {f:'SUM(N'+r1+':N'+r2+')'},{f:'SUM(O'+r1+':O'+r2+')'},
+      {f:'SUM(P'+r1+':P'+r2+')'},{f:'SUM(Q'+r1+':Q'+r2+')'},
+      {f:'SUM(R'+r1+':R'+r2+')'},{f:'SUM(S'+r1+':S'+r2+')'},
+      {f:'SUM(T'+r1+':T'+r2+')'},'','','','','','']);
+    var wb2=XLSX.utils.book_new();
+    var ws=XLSX.utils.aoa_to_sheet(ws_data);
+    ws['!cols']=[
+      {wch:4},{wch:13},{wch:34},{wch:22},{wch:8},{wch:12},{wch:13},
+      {wch:5},{wch:8},{wch:8},{wch:8},{wch:8},{wch:10},
+      {wch:11},{wch:12},{wch:11},{wch:10},{wch:10},{wch:11},{wch:12},
+      {wch:13},{wch:13},{wch:34},{wch:12},{wch:13},{wch:16}];
+    XLSX.utils.book_append_sheet(wb2,'NÓMINA',ws);
+    var fname='NOMINA_SOPASE_'+c.id+'.xlsx';
+    XLSX.writeFile(wb2,fname);
+    toast('✓ Exportado: '+fname+' ('+n+' trabajadores)');
+  }catch(e){
+    toast('Error exportando: '+e.message);
+    console.error('exportarNomina error:',e);
+  }
 }
 
 /* ── svTar: guarda tarifa (TARIFA_HORA / TALLA_PROD) en Sheet ──────────── */
@@ -2143,6 +2145,11 @@ function _openWAWithData(t,c,driveUrl){
     ?'https://wa.me/'+waNum+'?text='+encodeURIComponent(msg)
     :'https://wa.me/?text='+encodeURIComponent(msg);
   window.open(url,'_blank');
+}
+
+/* ── publicarCierre: alias de guardarEnSheets ──────────────────────────── */
+function publicarCierre(cierreId){
+  guardarEnSheets(cierreId);
 }
 </script>
 </body>
