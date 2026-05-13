@@ -1751,16 +1751,33 @@ function renderHist(){
       const sk=String(r.cedula||r.nombre||'').replace(/'/g,'__q__');
       const esPag=r.estado==='pagado';
       const neto=r.neto||0;
-      return (esPag?'<tr style="opacity:0.5;background:rgba(34,197,94,0.03)">':'<tr>')
-        +'<td class="vm" style="font-size:0.72rem;color:var(--tx2)">'+r.cedula+'</td>'
-        +'<td><button class="btn-link" onclick="openRolHist(\''+c.id+'\',\''+sk+'\')">'+r.nombre+'</button>'
-        +(r.sector?'<br><span style="font-size:0.62rem;color:var(--tl)">'+sectEmoji(r.sector)+' '+r.sector+'</span>':'')+'</td>'
-        +'<td style="font-size:0.72rem;color:var(--tx2)">'+((r.celular||'').substring(0,10)||'—')+'</td>'
-        +'<td class="vm">'+((r.diasTrab||0))+'d</td>'
-        +'<td class="vm va">$'+(r.bruto||r.total_tu||0).toFixed(2)+'</td>'
-        +'<td class="vm vr" style="font-size:0.75rem">'+(r.total_desc>0?'-$'+r.total_desc.toFixed(2):'—')+'</td>'
-        +'<td class="vm vp" style="font-weight:700">$'+neto.toFixed(2)+'</td>'
-        +'<td style="font-size:0.7rem;color:var(--tx2)">'+((r.cuentaBanco||'').substring(0,12)||(r.banco?r.banco.substring(0,8):'—'))+'</td>'
+      const bruto=r.bruto||r.total_tu||0;
+      const hrs=r.hrsT||0; const lbs=r.lbsT||0;
+      const tH=r.total_tu_h||0; const tP=r.total_tu_p||0;
+      const hrsStr=hrs>0?'<span style="color:var(--am)">$'+tH.toFixed(2)+'</span>':'<span style="color:var(--tx3)">—</span>';
+      const lbsStr=lbs>0?'<span style="color:var(--am)">$'+tP.toFixed(2)+'</span>':'<span style="color:var(--tx3)">—</span>';
+      const expStr=r.desc_expreso>0?'<span style="color:var(--re)">-$'+r.desc_expreso.toFixed(2)+'<br><span style="font-size:0.62rem;color:var(--tx3)">'+(r.diasTrab||0)+'d×$'+((r.desc_expreso/(r.diasTrab||1)).toFixed(2))+'</span></span>':'<span style="color:var(--tx3)">—</span>';
+      const bancStr=r.desc_bancario>0?'<span style="color:var(--re)">-$'+r.desc_bancario.toFixed(2)+'</span>':'<span style="color:var(--tx3)">—</span>';
+      const sct=r.sector?sectEmoji(r.sector)+' '+r.sector:'<span style="color:var(--tx3)">—</span>';
+      // WA + PDF action buttons
+      const driveBtn=r.drive_url
+        ?'<a href="'+r.drive_url+'" target="_blank" title="Ver PDF" style="color:var(--sap3);font-size:1rem;text-decoration:none">📄</a>'
+        :'<span title="Sin PDF" style="color:var(--tx3);font-size:0.9rem">📄</span>';
+      const waBtn='<button title="PDF + WhatsApp" onclick="histWA(\''+c.id+'\',\''+sk+'\')" style="background:rgba(37,211,102,0.15);border:1px solid rgba(37,211,102,0.3);border-radius:50%;width:28px;height:28px;cursor:pointer;font-size:0.85rem;display:flex;align-items:center;justify-content:center">💬</button>';
+      return '<tr style="'+(esPag?'opacity:0.6;':'')+'border-bottom:1px solid var(--brd)">'
+        +'<td style="padding:10px 8px;font-size:0.72rem;color:var(--tx2);white-space:nowrap">'+r.cedula+'</td>'
+        +'<td style="padding:10px 8px"><button class="btn-link" onclick="openRolHist(\''+c.id+'\',\''+sk+'\')">'+r.nombre+'</button>'
+          +'<div style="font-size:0.65rem;color:var(--tl);margin-top:2px">'+sct+'</div></td>'
+        +'<td style="padding:10px 8px;font-size:0.72rem;color:var(--tx2)">'+((r.celular||'').substring(0,10)||'—')+'</td>'
+        +'<td style="padding:10px 8px;text-align:center;color:var(--tx2)">'+((r.diasTrab||0))+'d</td>'
+        +'<td style="padding:10px 8px;font-family:var(--mo)">'+hrs.toFixed(2)+'h</td>'
+        +'<td style="padding:10px 8px;font-family:var(--mo)">'+hrsStr+'</td>'
+        +'<td style="padding:10px 8px;font-family:var(--mo)">'+lbs.toFixed(0)+'</td>'
+        +'<td style="padding:10px 8px;font-family:var(--mo)">'+lbsStr+'</td>'
+        +'<td style="padding:10px 8px;font-family:var(--mo);font-weight:600;color:var(--am)">$'+bruto.toFixed(2)+'</td>'
+        +'<td style="padding:10px 8px">'+expStr+'</td>'
+        +'<td style="padding:10px 8px">'+bancStr+'</td>'
+        +'<td style="padding:10px 8px;font-family:var(--mo);font-weight:700;color:var(--pu)">$'+neto.toFixed(2)+'</td>'
         +'<td><button class="bpag '+(esPag?'pagado':'pend')+'" onclick="togglePago(\''+c.id+'\',\''+sk+'\')">'+(esPag?'✓ Pagado':'● Pendiente')+'</button></td>'
         +'<td>'
           +(r.drive_url
@@ -1805,7 +1822,7 @@ function renderHist(){
       // ── Worker Detail (hidden) ──
       +'<div id="'+detailId+'" style="display:none;overflow-x:auto">'
         +'<table class="hctable">'
-          +'<thead><tr><th>Cédula</th><th>Nombre</th><th>Celular</th><th>Días</th><th>Bruto</th><th>Desc</th><th style="color:var(--pu)">Neto</th><th>Cuenta</th><th>Estado</th><th>PDF</th></tr></thead>'
+          +'<thead><tr style="font-size:0.65rem;text-transform:uppercase;color:var(--tx2);background:rgba(0,0,0,0.2)"><th style="padding:8px">Cédula</th><th style="padding:8px">Nombre / Sector</th><th style="padding:8px">Celular</th><th style="padding:8px">Días</th><th style="padding:8px">Hrs</th><th style="padding:8px">★Hrs</th><th style="padding:8px">Lbs</th><th style="padding:8px">★Prod</th><th style="padding:8px">Bruto</th><th style="padding:8px">Expreso</th><th style="padding:8px">Banco</th><th style="padding:8px;color:var(--pu)">Neto</th><th style="padding:8px">Estado</th><th style="padding:8px">PDF/WA</th></tr></thead>'
           +'<tbody>'+workerRows+'</tbody>'
         +'</table>'
       +'</div>'
@@ -1851,8 +1868,10 @@ function marcarTodosPagados(cierreId){
 
 // ── Exportar Nómina como XLSX ─────────────────────────────────────────────────
 function exportarNomina(cierreId){
+  if(typeof XLSX==='undefined'){toast('⚠ Librería XLSX no cargada — revisa conexión a internet');return;}
   var hist=loadHist(),c=hist.find(function(x){return x.id===cierreId;});
   if(!c){toast('Cierre no encontrado');return;}
+  try{
   var tAll=c.trabajadores||[];
   var n=tAll.length;
   var dataRow=4; // data starts at row 5 (index 4 in 0-based sheetData)
@@ -1936,6 +1955,7 @@ function exportarNomina(cierreId){
   var fname='NOMINA_SOPASE_'+c.id+'.xlsx';
   XLSX.writeFile(wb2,fname);
   toast('✓ Exportado: '+fname);
+  }catch(e){toast('Error exportando: '+e.message);console.error(e);}
 }
 
 /* ── svTar: guarda tarifa (TARIFA_HORA / TALLA_PROD) en Sheet ──────────── */
@@ -2004,6 +2024,125 @@ function guardarEnSheets(cierreId){
       if(r.ok){btn.textContent='✓('+r.saved+')';c._pendiente_sheets=false;saveHistData(hist);toast('✓ Sheets: '+r.saved+' ROL_PAGOS · '+(r.detalle||rd.length)+' ROL_DETALLE');}
       else{btn.textContent='⚠';btn.disabled=false;toast('Error: '+(r.error||''));}})
     .catch(function(e){btn.textContent='⚠';btn.disabled=false;toast('Error red: '+e.message);});
+}
+
+/* ── histWA: genera PDF → sube a Drive → abre WhatsApp ─────────────────── */
+async function histWA(cierreId, safeKey){
+  safeKey=safeKey.replace(/__q__/g,"'");
+  const hist=loadHist();
+  const c=hist.find(function(x){return x.id===cierreId;});
+  if(!c){toast('Cierre no encontrado');return;}
+  const t=c.trabajadores.find(function(x){return (x.cedula||x.nombre)===safeKey;});
+  if(!t){toast('Trabajador no encontrado');return;}
+
+  // If already has Drive URL → open WA directly
+  if(t.drive_url){
+    _openWAWithData(t,c,t.drive_url);
+    return;
+  }
+
+  toast('⏳ Generando PDF...');
+  // Build worker object for PDF
+  const w={
+    cedula:t.cedula,nombre:t.nombre,sector:t.sector||'',celular:t.celular||'',
+    sede:t.sede||c.sede||'',cuentaBanco:t.cuentaBanco||t.cuenta_banco||'',
+    banco:t.banco||'',tipoCuenta:t.tipoCuenta||'',
+    nombreProp:t.nombreProp||'',cedProp:t.cedProp||'',
+    diasTrab:t.diasTrab||0,hT:t.hrsT||0,tH:t.total_tu_h||0,
+    lT:t.lbsT||0,tP:t.total_tu_p||0,bonusAvance:t.bonusAvance||0,
+    bruto:t.bruto||t.total_tu||0,expresoDia:t.expresoDia||0,
+    descExpreso:t.desc_expreso||0,descBancario:t.desc_bancario||0,
+    lineasH:t.lineasH||[],lineasP:t.lineasP||[]
+  };
+  const ov={anticipo:t.desc_anticipo||0,multa:t.desc_multa||0,otros:t.desc_otros||0,obs:t.desc_obs||''};
+  const td=t.total_desc||0,neto=t.neto||0;
+
+  const html=buildPdfHTML({w,ov,td,neto,cargo:c.cargo||'',sede:c.sede||'',
+    ini:c.periodo_ini||'',fin:c.periodo_fin||'',rango:c.rango||'',
+    anti:ov.anticipo,multa:ov.multa,otros:ov.otros,obs:ov.obs});
+  const wrap=$d('pdf-wrap');
+  wrap.innerHTML=html; wrap.style.left='0'; wrap.style.zIndex='9999';
+  await new Promise(function(r){setTimeout(r,300);});
+
+  try{
+    const canvas=await html2canvas(wrap,{scale:2,useCORS:true,backgroundColor:'#ffffff'});
+    const imgData=canvas.toDataURL('image/png');
+    const {jsPDF}=window.jspdf;
+    const pdf=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+    const pW=pdf.internal.pageSize.getWidth(),pH=pdf.internal.pageSize.getHeight();
+    const ratio=canvas.width/canvas.height;
+    let pw2=pW,ph2=pW/ratio;
+    if(ph2>pH){ph2=pH;pw2=pH*ratio;}
+    pdf.addImage(imgData,'PNG',(pW-pw2)/2,0,pw2,ph2);
+    const fname='ROL_'+t.nombre.replace(/\s+/g,'_').substring(0,20)+'_'+c.periodo_ini+'.pdf';
+    const pdfB64=pdf.output('datauristring').split(',')[1];
+    const fid=$d('drive-folder')?$d('drive-folder').value||'':'';
+    wrap.style.left='-9999px'; wrap.style.zIndex='-1'; wrap.innerHTML='';
+
+    // Upload to Drive
+    fetch(getAPI(),{method:'POST',body:JSON.stringify({action:'save_to_drive',folder_id:fid,pdf_base64:pdfB64,filename:fname})})
+      .then(function(r){return r.json();})
+      .then(function(r){
+        if(r.ok){
+          t.drive_url=r.url;
+          saveHistData(hist);
+          renderHist();
+          toast('✓ PDF en Drive');
+          _openWAWithData(t,c,r.url);
+        } else {
+          toast('⚠ Error Drive: '+(r.error||''));
+          _openWAWithData(t,c,'');
+        }
+      })
+      .catch(function(e){
+        wrap.style.left='-9999px'; wrap.innerHTML='';
+        toast('Error: '+e.message);
+        _openWAWithData(t,c,'');
+      });
+  }catch(e){
+    wrap.style.left='-9999px'; wrap.style.zIndex='-1'; wrap.innerHTML='';
+    toast('Error PDF: '+e.message);
+  }
+}
+
+function _openWAWithData(t,c,driveUrl){
+  var neto=+(t.neto||0).toFixed(2);
+  var bruto=+(t.bruto||t.total_tu||0).toFixed(2);
+  var desc=+(t.total_desc||0).toFixed(2);
+  var SEP='━━━━━━━━━━━━━━━━━━━━━━━━━';
+  var msg='*'+t.nombre+'*\n';
+  msg+=SEP+'\n';
+  msg+='📅 Período: '+c.rango+'\n';
+  msg+='🏢 '+c.cargo+'\n';
+  if(t.sector) msg+=sectEmoji(t.sector)+' Sector: '+t.sector+'\n';
+  msg+=SEP+'\n';
+  if(t.hrsT>0)   msg+='⏱ Horas: '+t.hrsT.toFixed(2)+'h → $'+( t.total_tu_h||0).toFixed(2)+'\n';
+  if(t.lbsT>0)   msg+='📦 Avance: '+t.lbsT.toFixed(0)+' lb → $'+(t.total_tu_p||0).toFixed(2)+'\n';
+  msg+='🔥 *Total Bruto: $'+bruto+'*\n';
+  msg+=SEP+'\n';
+  if(t.desc_expreso>0) msg+='🚌 Expreso: -$'+t.desc_expreso.toFixed(2)+'\n';
+  if(t.desc_bancario>0) msg+='🏦 Bancario: -$'+t.desc_bancario.toFixed(2)+'\n';
+  if(t.desc_anticipo>0) msg+='💵 Anticipo: -$'+t.desc_anticipo.toFixed(2)+'\n';
+  if(t.desc_multa>0)    msg+='⚠ Multa: -$'+t.desc_multa.toFixed(2)+'\n';
+  if(t.desc_otros>0)    msg+='➕ Otros: -$'+t.desc_otros.toFixed(2)+'\n';
+  if(desc>0) msg+='📊 Total Desc: -$'+desc+'\n';
+  msg+=SEP+'\n';
+  msg+='💰 *NETO A PAGAR: $'+neto+'*\n';
+  if(t.cuentaBanco||t.cuenta_banco) msg+='🏦 '+t.banco+' · '+(t.cuentaBanco||t.cuenta_banco)+'\n';
+  if(driveUrl) msg+='\n📄 *Comprobante:* '+driveUrl+'\n';
+  msg+=SEP+'\n_SUDAMERICANPACK · SOPASE_';
+
+  var rawTel=String(t.celular||'').replace(/[^0-9]/g,'');
+  var waNum='';
+  if(rawTel.length===10&&rawTel.startsWith('0')) waNum='593'+rawTel.substring(1);
+  else if(rawTel.length===9) waNum='593'+rawTel;
+  else if(rawTel.startsWith('593')) waNum=rawTel;
+  else if(rawTel) waNum='593'+rawTel;
+
+  var url=waNum
+    ?'https://wa.me/'+waNum+'?text='+encodeURIComponent(msg)
+    :'https://wa.me/?text='+encodeURIComponent(msg);
+  window.open(url,'_blank');
 }
 </script>
 </body>
