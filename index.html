@@ -1613,7 +1613,7 @@ function guardarCierre(){
     const ov=getOv(w.cedula);
     const td=+(w.descExpreso+w.descBancario+ov.anticipo+ov.multa+ov.otros).toFixed(2);
     const neto=+(w.bruto-td).toFixed(2);
-    return{id_rol:idRol,periodo_ini:ini,periodo_fin:fin,cargo,sede,cedula:w.cedula,nombre:w.nombre,sector:w.sector,celular:w.celular,dias_trab:w.diasTrab,horas:+w.hT.toFixed(2),pago_hora:+w.tH.toFixed(2),libras:+w.lT.toFixed(2),pago_avance:+(w.tP+w.bonusAvance).toFixed(2),bruto:w.bruto,desc_expreso:w.descExpreso,desc_bancario:w.descBancario,desc_anticipo:ov.anticipo,desc_multa:ov.multa,desc_otros:ov.otros,desc_obs:ov.obs,total_desc:td,neto,cuenta_banco:w.cuentaBanco,banco:w.banco,tipo_cuenta:w.tipoCuenta||'',drive_url:ov.driveUrl||''};
+    return{id_rol:idRol,periodo_ini:ini,periodo_fin:fin,cargo,sede,cedula:w.cedula,nombre:w.nombre,sector:w.sector,celular:w.celular,dias_trab:w.diasTrab,horas:+w.hT.toFixed(2),pago_hora:+w.tH.toFixed(2),libras:+w.lT.toFixed(2),pago_avance:+(w.tP+w.bonusAvance).toFixed(2),bruto:w.bruto,desc_expreso:w.descExpreso,desc_bancario:w.descBancario,desc_anticipo:ov.anticipo,desc_multa:ov.multa,desc_otros:ov.otros,desc_obs:ov.obs,total_desc:td,neto,cuenta_banco:w.cuentaBanco,banco:w.banco,tipo_cuenta:w.tipoCuenta||'',nombre_prop:w.nombreProp||'',cedula_prop:w.cedProp||'',drive_url:ov.driveUrl||''};
   });
   const rolDetalle=det.map(r=>({id_rol:idRol,cedula:r.cedula,tipo:r.tipo==='HORA'?'HORA':'AVANCE',fecha:r.fecha,fecha_sort:r.fechaSort,turno:r.turno,area:r.det2,hora_ing:r.horaIng,hora_sal:r.horaSal,horas:r.tipo==='HORA'?+r.cant.toFixed(2):0,tarifa:+r.tarTu.toFixed(4),pago:+r.valTu.toFixed(2),completo:1,peso:r.tipo==='PROD'?+r.cant.toFixed(2):0,unid:r.ud,tipo_proceso:r.tipoProceso||'',cliente:r.cliente||'',sede:r.sedeR||sede}));
   // localStorage
@@ -1904,151 +1904,153 @@ function exportarNomina(cierreId){
     var tAll=c.trabajadores||[];
     if(!tAll.length){toast('Sin trabajadores');return;}
 
+    // Separar en 3 grupos
+    var tTransf=tAll.filter(function(t){return !!(t.cuentaBanco||t.cuenta_banco);});
+    var tEfect=tAll.filter(function(t){return !(t.cuentaBanco||t.cuenta_banco);});
+
     var sv=function(v){if(v===null||v===undefined||v!==v)return '';return String(v);};
     var nv=function(v){var x=parseFloat(v);return(x!==x||!isFinite(x))?0:Math.round(x*100)/100;};
-    var xe=function(v){return sv(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');};
 
-    // Compute totals
-    var sD=0,sH=0,sHP=0,sL=0,sLP=0,sB=0,sE=0,sBn=0,sA=0,sM=0,sO=0,sTD=0,sN=0;
-    tAll.forEach(function(t){
-      sD+=nv(t.diasTrab||t.dias_trab); sH+=nv(t.hrsT||t.horas); sHP+=nv(t.total_tu_h||t.pago_hora);
-      sL+=nv(t.lbsT||t.libras); sLP+=nv(t.total_tu_p||t.pago_avance); sB+=nv(t.bruto||t.total_tu);
-      sE+=nv(t.desc_expreso); sBn+=nv(t.desc_bancario); sA+=nv(t.desc_anticipo);
-      sM+=nv(t.desc_multa); sO+=nv(t.desc_otros); sTD+=nv(t.total_desc); sN+=nv(t.neto);
-    });
-    var rn=function(v){return Math.round(v*100)/100;};
+    function buildSheet(trabajadores,titulo){
+      if(!trabajadores.length) return null;
+      var sD=0,sH=0,sHP=0,sL=0,sLP=0,sB=0,sE=0,sBn=0,sA=0,sM=0,sO=0,sTD=0,sN=0;
+      trabajadores.forEach(function(t){
+        sD+=nv(t.diasTrab||t.dias_trab); sH+=nv(t.hrsT||t.horas); sHP+=nv(t.total_tu_h||t.pago_hora);
+        sL+=nv(t.lbsT||t.libras); sLP+=nv(t.total_tu_p||t.pago_avance); sB+=nv(t.bruto||t.total_tu);
+        sE+=nv(t.desc_expreso); sBn+=nv(t.desc_bancario); sA+=nv(t.desc_anticipo);
+        sM+=nv(t.desc_multa); sO+=nv(t.desc_otros); sTD+=nv(t.total_desc); sN+=nv(t.neto);
+      });
+      var rn=function(v){return Math.round(v*100)/100;};
 
-    // Build Excel-compatible HTML (opens perfectly in Excel with formatting)
-    var HEADER_BG='#0d3b6e'; var HEADER_FG='#ffffff';
-    var TOTAL_BG='#1e3a5f'; var ALT_BG='#f0f5ff';
+      var HDR_BG='#0d3b6e';var HDR_FG='#fff';
+      var thS='border:1px solid #888;padding:6px 7px;background:'+HDR_BG+';color:'+HDR_FG+';font-family:Arial;font-size:9pt;font-weight:bold;text-align:center;white-space:nowrap;';
+      var tdS='border:1px solid #ccc;padding:4px 6px;font-family:Arial;font-size:9pt;';
+      var tdN=tdS+'text-align:right;';
 
-    var tdN='border:1px solid #ccc;padding:5px 7px;text-align:right;font-family:Arial;font-size:10pt;';
-    var tdS='border:1px solid #ccc;padding:5px 7px;font-family:Arial;font-size:10pt;';
-    var thS='border:1px solid #888;padding:6px 7px;background:'+HEADER_BG+';color:'+HEADER_FG+';font-family:Arial;font-size:10pt;font-weight:bold;text-align:center;';
+      var rows='';
+      trabajadores.forEach(function(t,i){
+        var li=getListado(t.cedula);
+        var sect=sv((t.sector&&t.sector.trim())||(li&&li.sector&&li.sector.trim()));
+        var cel=sv((t.celular&&t.celular.trim())||(li&&li.celular&&li.celular.trim()));
+        var cta=sv(t.cuentaBanco||t.cuenta_banco);
+        // Propietario: solo si la cuenta ES PRESTADA (nombreProp lleno)
+        var tit=sv(t.nombreProp);
+        var cedP=sv(t.cedProp);
+        var bg=i%2===0?'#fff':'#f0f5ff';
+        var td='background:'+bg+';'+tdS;
+        var tn='background:'+bg+';'+tdN;
+        rows+='<tr>'
+          +'<td style="'+tn+'">'+(i+1)+'</td>'
+          +'<td style="'+td+'">'+sv(t.cedula)+'</td>'
+          +'<td style="'+td+'">'+sv(t.nombre)+'</td>'
+          +'<td style="'+td+'">'+sv(c.cargo)+'</td>'
+          +'<td style="'+td+'">'+sv(c.sede)+'</td>'
+          +'<td style="'+td+'">'+sect+'</td>'
+          +'<td style="'+td+'">'+cel+'</td>'
+          +'<td style="'+tn+'">'+nv(t.diasTrab||t.dias_trab)+'</td>'
+          +'<td style="'+tn+'">'+nv(t.hrsT||t.horas)+'</td>'
+          +'<td style="'+tn+'">'+nv(t.total_tu_h||t.pago_hora)+'</td>'
+          +'<td style="'+tn+'">'+nv(t.lbsT||t.libras)+'</td>'
+          +'<td style="'+tn+'">'+nv(t.total_tu_p||t.pago_avance)+'</td>'
+          +'<td style="'+tn+';font-weight:bold;color:#1a3a6c;">'+nv(t.bruto||t.total_tu)+'</td>'
+          +'<td style="'+tn+';color:#dc2626;">'+nv(t.desc_expreso)+'</td>'
+          +'<td style="'+tn+';color:#dc2626;">'+nv(t.desc_bancario)+'</td>'
+          +'<td style="'+tn+';color:#dc2626;">'+nv(t.desc_anticipo)+'</td>'
+          +'<td style="'+tn+';color:#dc2626;">'+nv(t.desc_multa)+'</td>'
+          +'<td style="'+tn+';color:#dc2626;">'+nv(t.desc_otros)+'</td>'
+          +'<td style="'+tn+';color:#dc2626;font-weight:bold;">'+nv(t.total_desc)+'</td>'
+          +'<td style="'+tn+';font-weight:bold;color:#15803d;font-size:10pt;">'+nv(t.neto)+'</td>'
+          +'<td style="'+td+'">'+sv(t.banco)+'</td>'
+          +'<td style="'+td+'">'+cta+'</td>'
+          +'<td style="'+td+'">'+tit+'</td>'
+          +'<td style="'+td+'">'+cedP+'</td>'
+          +'<td style="'+td+';font-weight:bold;color:'+(t.estado==='pagado'?'#15803d':'#b45309')+';">'+(t.estado==='pagado'?'PAGADO':'PENDIENTE')+'</td>'
+          +'<td style="'+td+'">'+sv(t.fecha_pago)+'</td>'
+          +'<td style="'+td+'">'+sv(t.desc_obs)+'</td>'
+          +'</tr>\n';
+      });
 
-    var rows='';
-    tAll.forEach(function(t,i){
-      var li=getListado(t.cedula);
-      var sect=sv((t.sector&&t.sector.trim())||(li&&li.sector&&li.sector.trim()));
-      var cel=sv((t.celular&&t.celular.trim())||(li&&li.celular&&li.celular.trim()));
-      var cta=sv(t.cuentaBanco||t.cuenta_banco);
-      // Titular: prop if exists, blank if has own account, name if no account
-      var tit=t.nombreProp?sv(t.nombreProp):(cta?'':sv(t.nombre));
-      // Cedula propietario
-      var cedProp=sv(t.cedProp);
-      var bg=i%2===0?'#ffffff':ALT_BG;
-      var td='background:'+bg+';'+tdS;
-      var tn='background:'+bg+';'+tdN;
-      rows+='<tr>'
-        +'<td style="'+tn+'">'+(i+1)+'</td>'
-        +'<td style="'+td+'">'+xe(t.cedula)+'</td>'
-        +'<td style="'+td+'">'+xe(t.nombre)+'</td>'
-        +'<td style="'+td+'">'+xe(c.cargo)+'</td>'
-        +'<td style="'+td+'">'+xe(c.sede)+'</td>'
-        +'<td style="'+td+'">'+xe(sect)+'</td>'
-        +'<td style="'+td+'">'+xe(cel)+'</td>'
-        +'<td style="'+tn+'">'+nv(t.diasTrab||t.dias_trab)+'</td>'
-        +'<td style="'+tn+'">'+nv(t.hrsT||t.horas)+'</td>'
-        +'<td style="'+tn+'">'+nv(t.total_tu_h||t.pago_hora)+'</td>'
-        +'<td style="'+tn+'">'+nv(t.lbsT||t.libras)+'</td>'
-        +'<td style="'+tn+'">'+nv(t.total_tu_p||t.pago_avance)+'</td>'
-        +'<td style="'+tn+';font-weight:bold;color:#1a3a6c;">'+nv(t.bruto||t.total_tu)+'</td>'
-        +'<td style="'+tn+';color:#dc2626;">'+nv(t.desc_expreso)+'</td>'
-        +'<td style="'+tn+';color:#dc2626;">'+nv(t.desc_bancario)+'</td>'
-        +'<td style="'+tn+';color:#dc2626;">'+nv(t.desc_anticipo)+'</td>'
-        +'<td style="'+tn+';color:#dc2626;">'+nv(t.desc_multa)+'</td>'
-        +'<td style="'+tn+';color:#dc2626;">'+nv(t.desc_otros)+'</td>'
-        +'<td style="'+tn+';color:#dc2626;font-weight:bold;">'+nv(t.total_desc)+'</td>'
-        +'<td style="'+tn+';font-weight:bold;color:#15803d;font-size:11pt;">'+nv(t.neto)+'</td>'
-        +'<td style="'+td+'">'+xe(t.banco)+'</td>'
-        +'<td style="'+td+'">'+xe(cta)+'</td>'
-        +'<td style="'+td+'">'+xe(tit)+'</td>'
-        +(cedProp?'<td style="'+td+'">'+xe(cedProp)+'</td>':'<td style="'+td+'"></td>')
-        +'<td style="'+td+';font-weight:bold;color:'+(t.estado==='pagado'?'#15803d':'#b45309')+';">'+( t.estado==='pagado'?'PAGADO':'PENDIENTE')+'</td>'
-        +'<td style="'+td+'">'+xe(t.fecha_pago)+'</td>'
-        +'<td style="'+td+'">'+xe(t.desc_obs)+'</td>'
-        +'</tr>\n';
-    });
+      var totBg='#0d3b6e';var totFg='#fff';
+      var tb='border:1px solid #888;padding:5px 7px;background:'+totBg+';color:'+totFg+';font-family:Arial;font-size:9pt;font-weight:bold;text-align:right;';
 
-    var html='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">\n'
-      +'<head><meta charset="UTF-8">\n'
-      +'<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>'
-      +'<x:Name>NOMINA</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>'
-      +'</x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->\n'
-      +'</head><body>\n'
-      // Title
-      +'<table style="font-family:Arial;border-collapse:collapse;width:100%">\n'
-      +'<tr><td colspan="27" style="background:'+HEADER_BG+';color:'+HEADER_FG+';font-size:14pt;font-weight:bold;padding:10px 12px;border:1px solid #888;">SUDAMERICAN PACK &mdash; ROL DE PAGOS</td></tr>\n'
-      +'<tr>'
-        +'<td colspan="2" style="padding:6px 8px;background:#e8f0fe;border:1px solid #ccc;font-weight:bold;">ROL:</td>'
-        +'<td colspan="2" style="padding:6px 8px;border:1px solid #ccc;">'+xe(c.id)+'</td>'
-        +'<td style="padding:6px 8px;background:#e8f0fe;border:1px solid #ccc;font-weight:bold;">PERIODO:</td>'
-        +'<td colspan="2" style="padding:6px 8px;border:1px solid #ccc;">'+xe(c.rango)+'</td>'
-        +'<td style="padding:6px 8px;background:#e8f0fe;border:1px solid #ccc;font-weight:bold;">CARGO:</td>'
-        +'<td colspan="3" style="padding:6px 8px;border:1px solid #ccc;">'+xe(c.cargo)+'</td>'
-        +'<td style="padding:6px 8px;background:#e8f0fe;border:1px solid #ccc;font-weight:bold;">SEDE:</td>'
-        +'<td colspan="2" style="padding:6px 8px;border:1px solid #ccc;">'+xe(c.sede)+'</td>'
-        +'<td colspan="13" style="border:1px solid #ccc;"></td>'
-      +'</tr>\n'
-      +'<tr>'
-        +'<th style="'+thS+'">N&deg;</th>'
-        +'<th style="'+thS+'">C&Eacute;DULA</th>'
-        +'<th style="'+thS+';min-width:180px">NOMBRE COMPLETO</th>'
-        +'<th style="'+thS+'">CARGO</th>'
-        +'<th style="'+thS+'">SEDE</th>'
-        +'<th style="'+thS+'">SECTOR</th>'
-        +'<th style="'+thS+'">CELULAR</th>'
-        +'<th style="'+thS+'">D&Iacute;AS</th>'
-        +'<th style="'+thS+'">HORAS</th>'
-        +'<th style="'+thS+'">$ HORA</th>'
-        +'<th style="'+thS+'">LIBRAS</th>'
-        +'<th style="'+thS+'">$ AVANCE</th>'
-        +'<th style="'+thS+'">BRUTO</th>'
-        +'<th style="'+thS+'">DESC.EXPRESO</th>'
-        +'<th style="'+thS+'">DESC.BANCARIO</th>'
-        +'<th style="'+thS+'">DESC.ANTICIPO</th>'
-        +'<th style="'+thS+'">DESC.MULTA</th>'
-        +'<th style="'+thS+'">DESC.OTROS</th>'
-        +'<th style="'+thS+'">TOTAL DESC.</th>'
-        +'<th style="'+thS+'">NETO A PAGAR</th>'
-        +'<th style="'+thS+'">BANCO</th>'
-        +'<th style="'+thS+'">N&deg; CUENTA</th>'
-        +'<th style="'+thS+'">TITULAR</th>'
-        +'<th style="'+thS+'">C&Eacute;D. PROP.</th>'
-        +'<th style="'+thS+'">ESTADO</th>'
-        +'<th style="'+thS+'">FECHA PAGO</th>'
-        +'<th style="'+thS+'">OBS</th>'
-      +'</tr>\n'
-      +rows
-      // Totals row
-      +'<tr style="background:'+TOTAL_BG+';color:#ffffff;font-weight:bold;">'
-        +'<td colspan="7" style="border:1px solid #888;padding:6px 8px;font-family:Arial;font-size:10pt;">TOTALES</td>'
-        +'<td style="border:1px solid #888;padding:5px 7px;text-align:right;font-family:Arial;font-size:10pt;">'+sD+'</td>'
-        +'<td style="border:1px solid #888;padding:5px 7px;text-align:right;font-family:Arial;font-size:10pt;">'+rn(sH)+'</td>'
-        +'<td style="border:1px solid #888;padding:5px 7px;text-align:right;font-family:Arial;font-size:10pt;">'+rn(sHP)+'</td>'
-        +'<td style="border:1px solid #888;padding:5px 7px;text-align:right;font-family:Arial;font-size:10pt;">'+rn(sL)+'</td>'
-        +'<td style="border:1px solid #888;padding:5px 7px;text-align:right;font-family:Arial;font-size:10pt;">'+rn(sLP)+'</td>'
-        +'<td style="border:1px solid #888;padding:5px 7px;text-align:right;font-family:Arial;font-size:10pt;">'+rn(sB)+'</td>'
-        +'<td style="border:1px solid #888;padding:5px 7px;text-align:right;font-family:Arial;font-size:10pt;">'+rn(sE)+'</td>'
-        +'<td style="border:1px solid #888;padding:5px 7px;text-align:right;font-family:Arial;font-size:10pt;">'+rn(sBn)+'</td>'
-        +'<td style="border:1px solid #888;padding:5px 7px;text-align:right;font-family:Arial;font-size:10pt;">'+rn(sA)+'</td>'
-        +'<td style="border:1px solid #888;padding:5px 7px;text-align:right;font-family:Arial;font-size:10pt;">'+rn(sM)+'</td>'
-        +'<td style="border:1px solid #888;padding:5px 7px;text-align:right;font-family:Arial;font-size:10pt;">'+rn(sO)+'</td>'
-        +'<td style="border:1px solid #888;padding:5px 7px;text-align:right;font-family:Arial;font-size:10pt;">'+rn(sTD)+'</td>'
-        +'<td style="border:1px solid #888;padding:5px 7px;text-align:right;font-family:Arial;font-size:10pt;color:#86efac;">'+rn(sN)+'</td>'
-        +'<td colspan="7" style="border:1px solid #888;"></td>'
-      +'</tr>\n'
-      +'</table></body></html>';
+      var html='<table style="font-family:Arial;border-collapse:collapse;width:100%;font-size:9pt">\n'
+        +'<tr><td colspan="27" style="background:'+HDR_BG+';color:'+HDR_FG+';font-size:13pt;font-weight:bold;padding:8px 12px;border:1px solid #888;">SUDAMERICAN PACK &mdash; '+titulo+'</td></tr>\n'
+        +'<tr>'
+          +'<td colspan="2" style="padding:5px 7px;background:#e8f0fe;border:1px solid #ccc;font-weight:bold;">ROL:</td>'
+          +'<td colspan="2" style="padding:5px 7px;border:1px solid #ccc;">'+sv(c.id)+'</td>'
+          +'<td style="padding:5px 7px;background:#e8f0fe;border:1px solid #ccc;font-weight:bold;">PERIODO:</td>'
+          +'<td colspan="3" style="padding:5px 7px;border:1px solid #ccc;">'+sv(c.rango)+'</td>'
+          +'<td style="padding:5px 7px;background:#e8f0fe;border:1px solid #ccc;font-weight:bold;">CARGO:</td>'
+          +'<td colspan="2" style="padding:5px 7px;border:1px solid #ccc;">'+sv(c.cargo)+'</td>'
+          +'<td style="padding:5px 7px;background:#e8f0fe;border:1px solid #ccc;font-weight:bold;">SEDE:</td>'
+          +'<td colspan="2" style="padding:5px 7px;border:1px solid #ccc;">'+sv(c.sede)+'</td>'
+          +'<td colspan="2" style="padding:5px 7px;background:#e8f0fe;border:1px solid #ccc;font-weight:bold;">TRABAJADORES:</td>'
+          +'<td colspan="2" style="padding:5px 7px;border:1px solid #ccc;font-weight:bold;">'+trabajadores.length+'</td>'
+          +'<td colspan="9" style="border:1px solid #ccc;"></td>'
+        +'</tr>\n'
+        +'<tr>'
+          +'<th style="'+thS+'">N&deg;</th><th style="'+thS+'">C&Eacute;DULA</th>'
+          +'<th style="'+thS+';min-width:150px">NOMBRE COMPLETO</th>'
+          +'<th style="'+thS+'">CARGO</th><th style="'+thS+'">SEDE</th>'
+          +'<th style="'+thS+'">SECTOR</th><th style="'+thS+'">CELULAR</th>'
+          +'<th style="'+thS+'">D&Iacute;AS</th><th style="'+thS+'">HORAS</th>'
+          +'<th style="'+thS+'">$ HORA</th><th style="'+thS+'">LIBRAS</th>'
+          +'<th style="'+thS+'">$ AVANCE</th><th style="'+thS+'">BRUTO</th>'
+          +'<th style="'+thS+'">DESC.EXP.</th><th style="'+thS+'">DESC.BANC.</th>'
+          +'<th style="'+thS+'">DESC.ANTI.</th><th style="'+thS+'">DESC.MULTA</th>'
+          +'<th style="'+thS+'">DESC.OTROS</th><th style="'+thS+'">TOTAL DESC.</th>'
+          +'<th style="'+thS+';min-width:70px">NETO A PAGAR</th>'
+          +'<th style="'+thS+'">BANCO</th><th style="'+thS+'">N&deg; CUENTA</th>'
+          +'<th style="'+thS+'">TITULAR</th><th style="'+thS+'">C&Eacute;D. PROP.</th>'
+          +'<th style="'+thS+'">ESTADO</th><th style="'+thS+'">FECHA PAGO</th>'
+          +'<th style="'+thS+'">OBS</th>'
+        +'</tr>\n'
+        +rows
+        +'<tr>'
+          +'<td colspan="7" style="'+tb+';text-align:left;background:'+totBg+';">TOTALES</td>'
+          +'<td style="'+tb+'">'+sD+'</td>'
+          +'<td style="'+tb+'">'+rn(sH)+'</td><td style="'+tb+'">'+rn(sHP)+'</td>'
+          +'<td style="'+tb+'">'+rn(sL)+'</td><td style="'+tb+'">'+rn(sLP)+'</td>'
+          +'<td style="'+tb+'">'+rn(sB)+'</td>'
+          +'<td style="'+tb+'">'+rn(sE)+'</td><td style="'+tb+'">'+rn(sBn)+'</td>'
+          +'<td style="'+tb+'">'+rn(sA)+'</td><td style="'+tb+'">'+rn(sM)+'</td>'
+          +'<td style="'+tb+'">'+rn(sO)+'</td><td style="'+tb+'">'+rn(sTD)+'</td>'
+          +'<td style="'+tb+';color:#86efac;font-size:10pt;">'+rn(sN)+'</td>'
+          +'<td colspan="7" style="'+tb+'"></td>'
+        +'</tr>\n'
+        +'</table>';
+      return html;
+    }
 
-    // Download as .xls (HTML → Excel, works in ALL versions)
+    var htmlGen=buildSheet(tAll,'ROL DE PAGOS - NOMINA GENERAL');
+    var htmlTr=buildSheet(tTransf,'NOMINA TRANSFERENCIAS ('+tTransf.length+' trabajadores)');
+    var htmlEf=buildSheet(tEfect,'PAGO EN EFECTIVO ('+tEfect.length+' trabajadores)');
+
+    // Excel multi-sheet via MSO namespace
     var BOM='\uFEFF';
-    var blob=new Blob([BOM+html],{type:'application/vnd.ms-excel;charset=utf-8'});
+    var sheetDefs='<x:ExcelWorksheets>'
+      +'<x:ExcelWorksheet><x:Name>NOMINA_GENERAL</x:Name><x:WorksheetOptions><x:Selected/></x:WorksheetOptions></x:ExcelWorksheet>'
+      +(htmlTr?'<x:ExcelWorksheet><x:Name>NOMINA_TRANSFERENCIAS</x:Name></x:ExcelWorksheet>':'')
+      +(htmlEf?'<x:ExcelWorksheet><x:Name>PAGO_EFECTIVO</x:Name></x:ExcelWorksheet>':'')
+      +'</x:ExcelWorksheets>';
+
+    var full=BOM
+      +'<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">\n'
+      +'<head><meta charset="UTF-8">\n'
+      +'<!--[if gte mso 9]><xml><x:ExcelWorkbook>'+sheetDefs+'</x:ExcelWorkbook></xml><![endif]-->\n'
+      +'</head><body>\n'
+      +htmlGen+'\n'
+      +(htmlTr?'<br clear=all>\n'+htmlTr+'\n':'')
+      +(htmlEf?'<br clear=all>\n'+htmlEf+'\n':'')
+      +'</body></html>';
+
+    var blob=new Blob([full],{type:'application/vnd.ms-excel;charset=utf-8'});
     var url=URL.createObjectURL(blob);
     var a=document.createElement('a');
     a.href=url; a.download='NOMINA_SOPASE_'+c.id+'.xls';
     document.body.appendChild(a); a.click();
     setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},500);
-    toast('Nomina descargada: '+tAll.length+' trabajadores (formato Excel)');
+    toast('Nomina descargada: '+tAll.length+' total / '+tTransf.length+' transferencias / '+tEfect.length+' efectivo');
   }catch(err){
     console.error('exportarNomina:',err);
     toast('Error: '+err.message);
