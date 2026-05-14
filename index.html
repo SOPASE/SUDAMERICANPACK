@@ -996,7 +996,8 @@ function bM(){
       const cedProp   =(ia&&aprobado)?(ia.cedula_prop||''):'';  // fix: ced_prop→cedula_prop
       const DESC_BANCO_FIJO = 1;
       const descBancario = (ia&&aprobado&&cuentaBanco) ? DESC_BANCO_FIJO : 0;
-      m[k]={cedula:r.cedula,nombre:r.nombre,sector,celular,sede,aprobacion,cuentaBanco,banco,tipoCuenta,nombreProp,cedProp,descBancario,expresoDia:getExpresoDia(sector),hT:0,eH:0,tH:0,lT:0,eP:0,tP:0,lineasH:[],lineasP:[],fechas:[]};
+      var _liCargo=(li&&li.cargo)?li.cargo.trim():'';
+      m[k]={cedula:r.cedula,nombre:r.nombre,sector,celular,sede,cargo:_liCargo,aprobacion,cuentaBanco,banco,tipoCuenta,nombreProp,cedProp,descBancario,expresoDia:getExpresoDia(sector),hT:0,eH:0,tH:0,lT:0,eP:0,tP:0,lineasH:[],lineasP:[],fechas:[]};
     }
     if(r.fechaSort&&!m[k].fechas.includes(r.fechaSort))m[k].fechas.push(r.fechaSort);
     if(r.tipo==='HORA'){m[k].hT+=r.cant;m[k].eH+=r.valEmp;m[k].tH+=r.valTu;m[k].lineasH.push(r);}
@@ -1357,7 +1358,8 @@ async function rmPDF(){
   ov.anticipo=anti;ov.multa=multa;ov.otros=otros;ov.obs=obs;
   const td=+(w.descExpreso+w.descBancario+anti+multa+otros).toFixed(2);
   const neto=+(w.bruto-td).toFixed(2);
-  const cargo=$d('cargo-input').value.trim()||'CUADRILLA';
+  const cargoInputVal=($d('cargo-input').value||'').trim();
+  const cargo=cargoInputVal&&cargoInputVal.toUpperCase()!=='ROL'?cargoInputVal:'CUADRILLA';
   const sede=$d('sede-input').value.trim()||'AMBAS';
   const {ini,fin,rango}=getDateRangeISO();
 
@@ -1564,7 +1566,8 @@ function rmWA(){
   ov.anticipo=anti;ov.multa=multa;ov.otros=otros;ov.obs=obs;
   const td=+(w.descExpreso+w.descBancario+anti+multa+otros).toFixed(2);
   const neto=+(w.bruto-td).toFixed(2);
-  const cargo=$d('cargo-input').value.trim()||'CUADRILLA';
+  const cargoInputVal=($d('cargo-input').value||'').trim();
+  const cargo=cargoInputVal&&cargoInputVal.toUpperCase()!=='ROL'?cargoInputVal:'CUADRILLA';
   const {rango}=getDateRangeISO();
   const SEP='--------------------';
   const LIN='  ──────────────';
@@ -1643,7 +1646,7 @@ function guardarCierre(){
     const ov=getOv(w.cedula);
     const td=+(w.descExpreso+w.descBancario+ov.anticipo+ov.multa+ov.otros).toFixed(2);
     const neto=+(w.bruto-td).toFixed(2);
-    return{id_rol:idRol,periodo_ini:ini,periodo_fin:fin,cargo,sede,cedula:w.cedula,nombre:w.nombre,sector:w.sector,celular:w.celular,dias_trab:w.diasTrab,horas:+w.hT.toFixed(2),pago_hora:+w.tH.toFixed(2),libras:+w.lT.toFixed(2),pago_avance:+(w.tP+w.bonusAvance).toFixed(2),bruto:w.bruto,desc_expreso:w.descExpreso,desc_bancario:w.descBancario,desc_anticipo:ov.anticipo,desc_multa:ov.multa,desc_otros:ov.otros,desc_obs:ov.obs,total_desc:td,neto,cuenta_banco:w.cuentaBanco,banco:w.banco,tipo_cuenta:w.tipoCuenta||'',nombre_prop:w.nombreProp||'',cedula_prop:w.cedProp||'',drive_url:ov.driveUrl||''};
+    return{id_rol:idRol,periodo_ini:ini,periodo_fin:fin,cargo:w.cargo||cargo,sede,cedula:w.cedula,nombre:w.nombre,sector:w.sector,celular:w.celular,dias_trab:w.diasTrab,horas:+w.hT.toFixed(2),pago_hora:+w.tH.toFixed(2),libras:+w.lT.toFixed(2),pago_avance:+(w.tP+w.bonusAvance).toFixed(2),bruto:w.bruto,desc_expreso:w.descExpreso,desc_bancario:w.descBancario,desc_anticipo:ov.anticipo,desc_multa:ov.multa,desc_otros:ov.otros,desc_obs:ov.obs,total_desc:td,neto,cuenta_banco:w.cuentaBanco,banco:w.banco,tipo_cuenta:w.tipoCuenta||'',nombre_prop:w.nombreProp||'',cedula_prop:w.cedProp||'',drive_url:ov.driveUrl||''};
   });
   const rolDetalle=det.map(r=>({id_rol:idRol,cedula:r.cedula,tipo:r.tipo==='HORA'?'HORA':'AVANCE',fecha:r.fecha,fecha_sort:r.fechaSort,turno:r.turno,area:r.det2,hora_ing:r.horaIng,hora_sal:r.horaSal,horas:r.tipo==='HORA'?+r.cant.toFixed(2):0,tarifa:+r.tarTu.toFixed(4),pago:+r.valTu.toFixed(2),completo:1,peso:r.tipo==='PROD'?+r.cant.toFixed(2):0,unid:r.ud,tipo_proceso:r.tipoProceso||'',cliente:r.cliente||'',sede:r.sedeR||sede}));
   // localStorage
@@ -1970,7 +1973,7 @@ function exportarNomina(cierreId){
       'DIAS','HORAS','$ HORA','LIBRAS','$ AVANCE','BRUTO',
       'DESC.EXPRESO','DESC.BANCARIO','DESC.ANTICIPO','DESC.MULTA','DESC.OTROS',
       'TOTAL DESC.','NETO A PAGAR','BANCO','N CUENTA','TITULAR','CED. PROP.',
-      'ESTADO','FECHA PAGO','OBS'];
+      'ESTADO','FECHA PAGO','OBS','LINK PDF'];
 
     // Construir filas de datos para un grupo
     function buildRows(trabajadores, label){
@@ -2023,7 +2026,8 @@ function exportarNomina(cierreId){
           dexp, dbanc, danti, dmulta, dotros, tdesc, neto,
           sv(t.banco), cta, tit, cedP,
           t.estado==='pagado'?'PAGADO':'PENDIENTE',
-          sv(t.fecha_pago), sv(t.desc_obs)
+          sv(t.fecha_pago), sv(t.desc_obs),
+          sv(t.drive_url||'')
         ]);
       });
       // Fila totales
