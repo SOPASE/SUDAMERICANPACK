@@ -1079,6 +1079,19 @@ function openRol(safeCed){
   $d('rm-avatar').textContent=w.nombre.charAt(0);
   $d('rm-name').textContent=w.nombre;
   var ctxEl=$d('rm-ctx'); if(ctxEl) ctxEl.textContent='VISTA PREVIA';
+  // Live lookup: refresh propietario data from INFO_ADICIONAL (in case historial data is stale)
+  if(_curRolWorker&&_curRolWorker.cedula){
+    var _iaLive=getInfoAd(_curRolWorker.cedula);
+    if(_iaLive){
+      _curRolWorker.cuentaBanco=_curRolWorker.cuentaBanco||_iaLive.n_cuenta||'';
+      _curRolWorker.banco=_curRolWorker.banco||_iaLive.banco||'';
+      _curRolWorker.tipoCuenta=_curRolWorker.tipoCuenta||_iaLive.tipo_cuenta||'';
+      if(_iaLive.nombre_prop&&_iaLive.nombre_prop.trim()){
+        _curRolWorker.nombreProp=_iaLive.nombre_prop.trim();
+        _curRolWorker.cedProp=_iaLive.cedula_prop||'';
+      }
+    }
+  }
   const subParts=[];
   if(w.celular)subParts.push('📱 '+w.celular);
   if(w.sector)subParts.push(sectEmoji(w.sector)+' '+w.sector);
@@ -1114,7 +1127,7 @@ function openRol(safeCed){
   if(w.descBancario>0){
     $d('rm-banc-row').style.display='block';
     const _tit2=w.nombreProp?w.nombreProp:w.nombre;
-    $d('rm-banc-lbl').textContent='🏦 '+w.banco+(w.tipoCuenta?' ('+w.tipoCuenta+')':'')+' · '+w.cuentaBanco+' · '+_tit2;
+    $d('rm-banc-lbl').textContent='🏦 '+w.banco+(w.tipoCuenta?' ('+w.tipoCuenta+')':'')+' · '+w.cuentaBanco+' · '+_titLabel+': '+_tit2;
     $d('rm-banc-val').textContent='-$'+w.descBancario.toFixed(2);
   } else $d('rm-banc-row').style.display='none';
   // editables
@@ -1442,7 +1455,7 @@ function buildPdfHTML({w,ov,td,neto,cargo,sede,ini,fin,rango,anti,multa,otros,ob
       ${w.celular?`<div><div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:3px">📱 Celular</div><div style="font-weight:600">${w.celular}</div></div>`:''}
       ${w.banco?`<div><div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:3px">🏦 Banco</div><div style="font-weight:600">${w.banco}</div></div>`:''}
       ${w.cuentaBanco?`<div><div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:3px">N° Cuenta</div><div style="font-weight:700;color:#1e40af">${w.cuentaBanco}</div></div>`:''}
-      ${(w.nombreProp||w.nombre)?`<div><div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:3px">👤 Propietario cuenta</div><div style="font-weight:700;color:#1e293b">${w.nombreProp||w.nombre}</div></div>`:''}
+      ${w.nombreProp?`<div><div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:3px">👤 Propietario (cuenta prestada)</div><div style="font-weight:700;color:#7c3aed">${w.nombreProp}</div></div>`:w.cuentaBanco?`<div><div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:3px">Titular</div><div style="font-weight:700;color:#1e293b">${w.nombre}</div></div>`:''}
     </div>
     <!-- PERÍODO -->
     <div style="background:${colH};color:#fff;padding:10px 28px;display:flex;align-items:center;justify-content:space-between;font-size:12px">
@@ -1684,6 +1697,19 @@ function openRolHist(cierreId,key){
   $d('rm-avatar').textContent=t.nombre.charAt(0);
   $d('rm-name').textContent=t.nombre;
   var ctx=$d('rm-ctx'); if(ctx) ctx.textContent='HISTORIAL';
+  // Live lookup: refresh propietario from INFO_ADICIONAL
+  if(_curRolWorker&&_curRolWorker.cedula){
+    var _iaH=getInfoAd(_curRolWorker.cedula);
+    if(_iaH){
+      _curRolWorker.cuentaBanco=_curRolWorker.cuentaBanco||_iaH.n_cuenta||'';
+      _curRolWorker.banco=_curRolWorker.banco||_iaH.banco||'';
+      _curRolWorker.tipoCuenta=_curRolWorker.tipoCuenta||_iaH.tipo_cuenta||'';
+      if(_iaH.nombre_prop&&_iaH.nombre_prop.trim()){
+        _curRolWorker.nombreProp=_iaH.nombre_prop.trim();
+        _curRolWorker.cedProp=_iaH.cedula_prop||'';
+      }
+    }
+  }
   const subParts=[];
   if(t.celular)subParts.push('📱 '+t.celular);
   if(t.sector)subParts.push(sectEmoji(t.sector)+' '+t.sector);
