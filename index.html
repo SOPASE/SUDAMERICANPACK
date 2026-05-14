@@ -1882,7 +1882,9 @@ function renderHist(){
         +'<button onclick="toggleDetalle(\''+detailId+'\')" style="flex:2;padding:9px 14px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.25);border-radius:var(--rs);color:var(--sap3);font-family:var(--fn);font-size:0.82rem;font-weight:600;cursor:pointer" id="btn-'+detailId+'">▶ Ver Detalle ('+tFilt.length+')</button>'
         +'<button onclick="exportarNomina(\''+c.id+'\')" style="flex:2;padding:9px 14px;background:rgba(20,184,166,0.1);border:1px solid rgba(20,184,166,0.25);border-radius:var(--rs);color:var(--tl);font-family:var(--fn);font-size:0.82rem;font-weight:600;cursor:pointer">📊 Exportar Nómina</button>'
         +'<button onclick="marcarTodosPagados(\''+c.id+'\')" style="flex:1;padding:9px 14px;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);border-radius:var(--rs);color:var(--gr);font-family:var(--fn);font-size:0.82rem;cursor:pointer">✓ Pagado</button>'
-        +'<button onclick="guardarEnSheets(\''+c.id+'\')" style="flex:1;padding:9px 14px;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.2);border-radius:var(--rs);color:var(--sap3);font-family:var(--fn);font-size:0.82rem;cursor:pointer">☁ Sheets</button>'
+        +'<button onclick="guardarEnSheets(\''+c.id+'\')" style="flex:1;padding:9px 14px;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.2);border-radius:var(--rs);color:var(--sap3);font-family:var(--fn);font-size:0.82rem;cursor:pointer">💾 Sheets</button>'
+       +'<button onclick="generarPDFsMasivos(\''+c.id+'\') style="flex:1;padding:9px 8px;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.25);border-radius:var(--rs);color:#4ade80;font-family:var(--fn);font-size:0.75rem;font-weight:600;cursor:pointer" id="pdfm-'+c.id+'">📄 PDFs Drive</button>'
+       +'<button onclick="recalcularCierre(\''+c.id+'\')" title="Recalcular con tarifas actuales" style="padding:9px 8px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.25);border-radius:var(--rs);color:var(--am);font-family:var(--fn);font-size:0.85rem;cursor:pointer">⟳</button>'
         +'<button onclick="delCierre(\''+c.id+'\')" style="flex:1;padding:9px 14px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:var(--rs);color:var(--re);font-family:var(--fn);font-size:0.82rem;cursor:pointer">🗑 Eliminar</button>'
       +'</div>'
       // ── Worker Detail (hidden) ──
@@ -2615,6 +2617,250 @@ function _recargarDatos(silent){
 window.addEventListener('load', function(){
   _tryAutoLogin();
 });
+
+/* ══ recalcularCierre ══════════════════════════════════════════════════════════
+   Usa las lineasH/lineasP guardadas + tarifas ACTUALES para recalcular
+   todos los montos de cada trabajador en un cierre del historial.
+   Solo funciona si las líneas de detalle están guardadas (requiere haber
+   guardado el rol desde Vista Previa, no desde Sheets).
+   ══════════════════════════════════════════════════════════════════════════ */
+function recalcularCierre(cierreId){
+  if(!TH.length||!TP.length){
+    toast('⚠ Primero carga las tarifas (pestaña Cargar)');return;
+  }
+  var hist=loadHist();
+  var c=hist.find(function(x){return x.id===cierreId;});
+  if(!c){toast('Cierre no encontrado');return;}
+
+  // Verificar que tiene líneas de detalle
+  var tieneLineas=c.trabajadores.some(function(t){
+    return (t.lineasH&&t.lineasH.length)||(t.lineasP&&t.lineasP.length);
+  });
+  if(!tieneLineas){
+    toast('⚠ Este cierre no tiene líneas de detalle guardadas\nGenera el rol de nuevo con los archivos originales');
+    return;
+  }
+
+  if(!confirm('¿Recalcular este rol con las tarifas actuales?\n\nEsto actualizará horas, libras y montos de los '+c.trabajadores.length+' trabajadores.')){return;}
+
+  var recalcCount=0;
+  c.trabajadores.forEach(function(t){
+    if((!t.lineasH||!t.lineasH.length)&&(!t.lineasP||!t.lineasP.length)) return;
+
+    var hT=0,tH=0,lT=0,tP=0,bonusAvance=0;
+
+    // Recalcular horas
+    (t.lineasH||[]).forEach(function(l){
+      var area=sv2(l.det2||l.area||'');
+      var turno=sv2(l.turno||'DIURNO').toUpperCase();
+      // Buscar tarifa en TH
+      var tarRow=TH.find(function(r){
+        return sv2(r.area).toUpperCase()===area.toUpperCase()||
+               sv2(r.proceso||'').toUpperCase()===area.toUpperCase();
+      });
+      var tarifa=tarRow?(turno==='NOCTURNO'?tarRow.nocturno:tarRow.diurno):0;
+      // Aplicar extra feriado si corresponde
+      var ferExtra=0;
+      if(l.esHoliday&&FE.length){
+        var fer=FE.find(function(f){return f.fecha===l.fecha;});
+        if(fer) ferExtra=fer.extra_hora_pg||0;
+      }
+      tarifa=+(tarifa||0);
+      var cant=+(l.cant||0);
+      l.tarTu=+(tarifa+ferExtra).toFixed(4);
+      l.valTu=+(cant*l.tarTu).toFixed(2);
+      hT+=cant; tH+=l.valTu;
+    });
+
+    // Recalcular avance/producción
+    var hdDays={};
+    (t.lineasP||[]).forEach(function(l){
+      var proc=sv2(l.det2||l.tipoProceso||l.talla||'');
+      var turno=sv2(l.turno||'DIURNO').toUpperCase();
+      var tarRow=TP.find(function(r){
+        return sv2(r.proceso||'').toUpperCase()===proc.toUpperCase()||
+               sv2(r.talla||'').toUpperCase()===proc.toUpperCase();
+      });
+      var tarifa=tarRow?(turno==='NOCTURNO'?tarRow.nocturno:tarRow.diurno):0;
+      tarifa=+(tarifa||0);
+      var cant=+(l.cant||0);
+      l.tarTu=tarifa;
+      l.valTu=+(cant*tarifa).toFixed(2);
+      lT+=cant; tP+=l.valTu;
+      // Bonus feriado avance (por día único)
+      if(l.esHoliday&&l.fecha&&!hdDays[l.fecha]){
+        hdDays[l.fecha]=true;
+        var fer2=FE.find(function(f){return f.fecha===l.fecha;});
+        if(fer2) bonusAvance+=(fer2.extra_avance_pg||0);
+      }
+    });
+
+    tP=+(tP+bonusAvance).toFixed(2);
+    var bruto=+(tH+tP).toFixed(2);
+
+    // Recalcular expreso (por días trabajados)
+    var dias=(t.lineasH||[]).reduce(function(acc,l){
+      var fs=l.fechaSort||l.fecha||'';if(fs&&!acc.dates[fs]){acc.dates[fs]=1;acc.n++;}return acc;
+    },{n:0,dates:{}}).n;
+    var sect=sv2(t.sector||'');
+    var expresoDia=getExpresoDia(sect);
+    var descExpreso=+(dias*expresoDia).toFixed(2);
+
+    // Actualizar trabajador
+    t.hrsT=+hT.toFixed(2); t.horas=t.hrsT;
+    t.total_tu_h=+tH.toFixed(2); t.pago_hora=t.total_tu_h;
+    t.lbsT=+lT.toFixed(3); t.libras=t.lbsT;
+    t.total_tu_p=+tP.toFixed(2); t.pago_avance=t.total_tu_p;
+    t.bonusAvance=bonusAvance;
+    t.bruto=bruto; t.total_tu=bruto;
+    t.diasTrab=dias; t.dias_trab=dias;
+    t.desc_expreso=descExpreso;
+    // Recalcular neto
+    var td=+(descExpreso+(t.desc_bancario||0)+(t.desc_anticipo||0)+(t.desc_multa||0)+(t.desc_otros||0)).toFixed(2);
+    t.total_desc=td;
+    t.neto=+(bruto-td).toFixed(2);
+    recalcCount++;
+  });
+
+  saveHistData(hist);
+  renderHist();
+  toast('✓ Recalculado: '+recalcCount+' trabajadores con tarifas actuales');
+}
+
+function sv2(v){if(v===null||v===undefined)return '';return String(v).trim();}
+
+/* ══ generarPDFsMasivos ═════════════════════════════════════════════════════
+   Genera PDF de cada trabajador y lo sube a Drive mostrando progreso.
+   Salta los que ya tienen drive_url. Funciona de forma asíncrona.
+   ═════════════════════════════════════════════════════════════════════════ */
+async function generarPDFsMasivos(cierreId){
+  var hist=loadHist();
+  var c=hist.find(function(x){return x.id===cierreId;});
+  if(!c){toast('Cierre no encontrado');return;}
+
+  var pendientes=c.trabajadores.filter(function(t){return !t.drive_url;});
+  var yaListos=c.trabajadores.length-pendientes.length;
+
+  if(!pendientes.length){
+    toast('✓ Todos los PDFs ya están en Drive ('+c.trabajadores.length+')');
+    return;
+  }
+
+  if(!getAPI()||!getAPI().includes('script.google')){
+    toast('⚠ Configura DEFAULT_API para subir a Drive');return;
+  }
+
+  var msg='Generar PDFs para '+pendientes.length+' trabajadores'+(yaListos?' ('+yaListos+' ya tienen PDF)':'')+'\n¿Continuar?';
+  if(!confirm(msg)) return;
+
+  // Show progress overlay
+  var bg=$d('pdfprog-bg');
+  bg.style.display='flex';
+  window._pdfStopFlag=false;
+  $d('pdfprog-stop').disabled=false;
+  $d('pdfprog-stop').textContent='✕ Detener';
+
+  var cargo=c.cargo||'', sede=c.sede||'', ini=c.periodo_ini||'', fin=c.periodo_fin||'', rango=c.rango||'';
+  var ok=0, errCount=0;
+
+  for(var i=0;i<pendientes.length;i++){
+    if(window._pdfStopFlag) break;
+    var t=pendientes[i];
+
+    // Update progress
+    var pct=Math.round((i/pendientes.length)*100);
+    $d('pdfprog-bar').style.width=pct+'%';
+    $d('pdfprog-count').textContent=(i+1)+' / '+pendientes.length+(yaListos?' · '+yaListos+' ya listos':'');
+    $d('pdfprog-name').textContent=t.nombre;
+
+    try{
+      // Build worker for PDF
+      var w={
+        cedula:t.cedula, nombre:t.nombre, sector:t.sector||'', celular:t.celular||'',
+        sede:t.sede||sede, cuentaBanco:t.cuentaBanco||t.cuenta_banco||'',
+        banco:t.banco||'', tipoCuenta:t.tipoCuenta||'',
+        nombreProp:t.nombreProp||'', cedProp:t.cedProp||'',
+        diasTrab:t.diasTrab||t.dias_trab||0,
+        hT:t.hrsT||t.horas||0, tH:t.total_tu_h||t.pago_hora||0,
+        lT:t.lbsT||t.libras||0, tP:t.total_tu_p||t.pago_avance||0,
+        bonusAvance:t.bonusAvance||0,
+        bruto:t.bruto||t.total_tu||0, expresoDia:t.expresoDia||0,
+        descExpreso:t.desc_expreso||0, descBancario:t.desc_bancario||0,
+        lineasH:t.lineasH||[], lineasP:t.lineasP||[]
+      };
+      var ov={anticipo:t.desc_anticipo||0,multa:t.desc_multa||0,otros:t.desc_otros||0,obs:t.desc_obs||''};
+      var td=t.total_desc||0, neto=t.neto||0;
+
+      // Generate PDF
+      var html=buildPdfHTML({w,ov,td,neto,cargo,sede,ini,fin,rango,
+        anti:ov.anticipo,multa:ov.multa,otros:ov.otros,obs:ov.obs});
+      var wrap=$d('pdf-wrap');
+      wrap.innerHTML=html; wrap.style.left='0'; wrap.style.zIndex='9999';
+      await new Promise(function(r){setTimeout(r,200);});
+
+      var canvas=await html2canvas(wrap,{scale:1.2,useCORS:true,backgroundColor:'#ffffff',logging:false,imageTimeout:0});
+      var imgData=canvas.toDataURL('image/jpeg',0.82);
+      var {jsPDF}=window.jspdf;
+      var pdf=new jsPDF({orientation:'portrait',unit:'mm',format:'a4',compress:true});
+      var pW=pdf.internal.pageSize.getWidth(),pH=pdf.internal.pageSize.getHeight();
+      var ratio=canvas.width/canvas.height;
+      var pw2=pW,ph2=pW/ratio;
+      if(ph2>pH){ph2=pH;pw2=pH*ratio;}
+      pdf.addImage(imgData,'JPEG',(pW-pw2)/2,0,pw2,ph2);
+      wrap.style.left='-9999px'; wrap.style.zIndex='-1'; wrap.innerHTML='';
+
+      var fname='ROL_'+t.nombre.replace(/\s+/g,'_').substring(0,18)+'_'+ini.replace(/-/g,'')+'.pdf';
+      var pdfB64=pdf.output('datauristring').split(',')[1];
+      var folderId=($d('drive-folder')||{value:''}).value||'';
+
+      // Upload to Drive
+      var resp=await fetch(getAPI(),{method:'POST',body:JSON.stringify({
+        action:'save_to_drive',folder_id:folderId,pdf_base64:pdfB64,filename:fname
+      })});
+      var rj=await resp.json();
+      if(rj.ok){
+        t.drive_url=rj.url;
+        ok++;
+        // Save incrementally every 5
+        if(ok%5===0) saveHistData(hist);
+      } else { errCount++; }
+    }catch(e){
+      errCount++;
+      wrap=$d('pdf-wrap');
+      if(wrap){wrap.style.left='-9999px';wrap.innerHTML='';}
+    }
+    // Small pause to keep UI responsive
+    await new Promise(function(r){setTimeout(r,50);});
+  }
+
+  // Final save
+  saveHistData(hist);
+  bg.style.display='none';
+  renderHist();
+  $d('pdfprog-bar').style.width='0%';
+  var stopped=window._pdfStopFlag?' (detenido)':'';
+  toast('✓ PDFs: '+ok+' generados'+stopped+(errCount?' · '+errCount+' errores':''));
+
+  // Update the button
+  var btnPdf=$d('pdfm-'+cierreId);
+  if(btnPdf) btnPdf.textContent='📄 PDFs ('+ok+')';
+}
 </script>
+
+<!-- ═══ PROGRESO PDFs MASIVOS ═══ -->
+<div id="pdfprog-bg" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:3000;align-items:center;justify-content:center;flex-direction:column">
+  <div style="background:var(--bg2);border:1px solid var(--brd);border-radius:14px;width:90%;max-width:420px;padding:28px 24px;text-align:center">
+    <div style="font-size:1.2rem;font-weight:700;color:var(--tx);margin-bottom:6px">Generando PDFs en Drive</div>
+    <div id="pdfprog-name" style="font-size:0.8rem;color:var(--tx2);margin-bottom:16px;min-height:1.2em"></div>
+    <div style="background:var(--bg3);border-radius:8px;height:10px;overflow:hidden;margin-bottom:12px">
+      <div id="pdfprog-bar" style="height:100%;background:linear-gradient(90deg,#22c55e,#4ade80);border-radius:8px;transition:width 0.3s;width:0%"></div>
+    </div>
+    <div id="pdfprog-count" style="font-size:0.9rem;color:var(--tx2);font-family:var(--mo);margin-bottom:20px">0 / 0</div>
+    <button id="pdfprog-stop" onclick="window._pdfStopFlag=true;this.textContent='Deteniendo...';this.disabled=true"
+      style="padding:8px 20px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);border-radius:8px;color:var(--re);cursor:pointer;font-family:var(--fn)">
+      ✕ Detener
+    </button>
+  </div>
+</div>
 </body>
 </html>
