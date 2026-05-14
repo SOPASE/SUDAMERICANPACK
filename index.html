@@ -268,6 +268,7 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
     </div>
     <div class="tbr">
       <span class="tbu" id="ul"></span>
+      <button onclick="_recargarDatos(false)" title="Recargar datos desde Sheets" style="padding:4px 10px;font-size:0.72rem;background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.25);border-radius:6px;color:#a5b4fc;cursor:pointer;font-family:var(--fn);margin-right:6px">🔄</button>
       <button class="bout" onclick="logout()">Salir</button>
     </div>
   </div>
@@ -784,9 +785,22 @@ function _doLogin(id, pw){
 
   // ── ACCESO CONCEDIDO ─────────────────────────────────────────────────────
   CURR_USER = u;
+  // Guardar sesión en localStorage (persiste al recargar)
+  try{
+    localStorage.setItem('sap_session', JSON.stringify({
+      idempleado: u.idempleado, nombre: u.nombre,
+      rol: u.rol||'', ts: Date.now()
+    }));
+  }catch(e){}
   $d('LS').style.display='none';
   $d('AP').style.display='block';
   $d('ul').textContent = u.nombre || u.idempleado;
+  // Sincronizar historial desde Sheets al iniciar sesión
+  setTimeout(function(){
+    if(loadHist().length===0){
+      cargarDesdeSheets(true); // silencioso si historial vacío
+    }
+  }, 2000); // esperar que la app termine de cargar
   tarifasOk=true;
   renderTar();
   checkReady();
@@ -800,6 +814,7 @@ function logout(){
   CURR_USER=null; USERS=[];
   TH=[];TP=[];TF=[];FE=[];IA=[];LIST=[];
   det=[];dH=[];dA=[];overrides={};
+  try{localStorage.removeItem('sap_session');}catch(e){}
   loaded={h:false,a:false};tarifasOk=false;
   $d('LS').style.display='flex';
   $d('AP').style.display='none';
@@ -2526,6 +2541,76 @@ function autoDetectCargo(filename, raw, hr){
     }
   }catch(e){}
 }
+
+/* ═══ Auto-restore session on page load ═══════════════════════════════════════
+   Si hay sesión guardada en localStorage, saltarse el login y cargar datos
+   ══════════════════════════════════════════════════════════════════════════ */
+function _tryAutoLogin(){
+  try{
+    var sess=localStorage.getItem('sap_session');
+    if(!sess) return false;
+    var s=JSON.parse(sess);
+    // Session expires after 12 hours
+    if(!s.idempleado || (Date.now()-s.ts)>43200000){
+      localStorage.removeItem('sap_session');
+      return false;
+    }
+    // Restore session without re-validating password
+    CURR_USER={idempleado:s.idempleado, nombre:s.nombre, rol:s.rol||''};
+    $d('LS').style.display='none';
+    $d('AP').style.display='block';
+    $d('ul').textContent=s.nombre||s.idempleado;
+    // Reload Sheets data silently
+    _recargarDatos(true);
+    // Sincronizar historial desde Sheets si está vacío
+    setTimeout(function(){
+      if(loadHist().length===0) cargarDesdeSheets(true);
+    }, 3000);
+    return true;
+  }catch(e){ return false; }
+}
+
+/* ═══ Recargar datos desde Sheets sin cerrar sesión ══════════════════════════ */
+function _recargarDatos(silent){
+  var api=getAPI();
+  if(!api||!api.includes('script.google')){
+    if(!silent) toast('⚠ DEFAULT_API no configurado');
+    return;
+  }
+  if(!silent) toast('⏳ Recargando datos...');
+  fetch(api)
+    .then(function(r){return r.text();})
+    .then(function(txt){
+      var data;
+      try{data=JSON.parse(txt);}catch(e){if(!silent)toast('Error al recargar');return;}
+      TH   = data.tarifa_hora    || [];
+      TP   = data.talla_prod     || [];
+      TF   = data.tarifa_expreso || [];
+      FE   = data.feriados       || [];
+      IA   = data.info_adicional || [];
+      IA_MAP={};
+      IA.forEach(function(ia){var c=normCed(ia.cedula);if(c)IA_MAP[c]=ia;});
+      LIST = data.listado || [];
+      LIST_MAP={};
+      LIST.forEach(function(l){
+        var c=normCed(l.cedula);
+        if(c){LIST_MAP[c]=l;LIST_MAP[l.cedula]=l;var s=c.replace(/^0+/,'');if(s)LIST_MAP[s]=l;}
+      });
+      USERS = data.usuarios || USERS || [];
+      tarifasOk=true;
+      if(!silent){
+        renderTar();
+        toast('✓ Datos actualizados: '+TH.length+' áreas · '+TP.length+' tallas · '+LIST.length+' listado');
+      }
+      checkReady();
+    })
+    .catch(function(e){if(!silent) toast('Error de red: '+e.message);});
+}
+
+// Run auto-login on load
+window.addEventListener('load', function(){
+  _tryAutoLogin();
+});
 </script>
 </body>
 </html>
