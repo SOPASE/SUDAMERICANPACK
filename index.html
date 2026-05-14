@@ -2023,7 +2023,7 @@ function exportarNomina(cierreId){
         sD+=dias;sH+=horas;sHP+=phora;sL+=lbs;sLP+=pavance;sB+=bruto;
         sE+=dexp;sBn+=dbanc;sA+=danti;sM+=dmulta;sO+=dotros;sTD+=tdesc;sN+=neto;
         rows.push([
-          i+1, sv(t.cedula), sv(t.nombre), sv(c.cargo), sv(c.sede), sect, cel,
+          i+1, sv(t.cedula), sv(t.nombre), sv(t.cargo||c.cargo), sv(c.sede), sect, cel,
           dias, horas, phora, lbs, pavance, bruto,
           dexp, dbanc, danti, dmulta, dotros, tdesc, neto,
           sv(t.banco), cta, tit, cedP,
