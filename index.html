@@ -1904,153 +1904,135 @@ function exportarNomina(cierreId){
     var tAll=c.trabajadores||[];
     if(!tAll.length){toast('Sin trabajadores');return;}
 
-    // Separar en 3 grupos
-    var tTransf=tAll.filter(function(t){return !!(t.cuentaBanco||t.cuenta_banco);});
-    var tEfect=tAll.filter(function(t){return !(t.cuentaBanco||t.cuenta_banco);});
+    // Separar grupos
+    var tTransf=[],tEfect=[];
+    tAll.forEach(function(t){
+      var cta=(t.cuentaBanco||t.cuenta_banco||'').toString().trim();
+      if(cta) tTransf.push(t); else tEfect.push(t);
+    });
 
-    var sv=function(v){if(v===null||v===undefined||v!==v)return '';return String(v);};
-    var nv=function(v){var x=parseFloat(v);return(x!==x||!isFinite(x))?0:Math.round(x*100)/100;};
+    // Helpers — SOLO primitivos para evitar errores XLSX
+    var sv=function(v){
+      if(v===null||v===undefined||v!==v) return '';
+      var s=String(v).trim();
+      return s==='null'||s==='undefined'?'':s;
+    };
+    var nv=function(v){
+      var x=parseFloat(v);
+      return(x!==x||!isFinite(x))?0:Math.round(x*100)/100;
+    };
 
-    function buildSheet(trabajadores,titulo){
-      if(!trabajadores.length) return null;
+    // ENCABEZADOS (27 columnas)
+    var HDR=['N','CEDULA','NOMBRE COMPLETO','CARGO','SEDE','SECTOR','CELULAR',
+      'DIAS','HORAS','$ HORA','LIBRAS','$ AVANCE','BRUTO',
+      'DESC.EXPRESO','DESC.BANCARIO','DESC.ANTICIPO','DESC.MULTA','DESC.OTROS',
+      'TOTAL DESC.','NETO A PAGAR','BANCO','N CUENTA','TITULAR','CED. PROP.',
+      'ESTADO','FECHA PAGO','OBS'];
+
+    // Construir filas de datos para un grupo
+    function buildRows(trabajadores, label){
+      var rows=[];
+      // Fila título
+      rows.push(['SUDAMERICAN PACK - ROL DE PAGOS - '+label,
+        '','','','','','','','','','','','','','','','','','','','','','','','','','']);
+      // Fila meta
+      rows.push(['ROL:',sv(c.id),'','PERIODO:',sv(c.rango),'','CARGO:',sv(c.cargo),
+        '','SEDE:',sv(c.sede),'','TRABAJADORES:',trabajadores.length,
+        '','','','','','','','','','','','','']);
+      // Fila vacía
+      rows.push(new Array(27).fill(''));
+      // Encabezados
+      rows.push(HDR.slice());
+
       var sD=0,sH=0,sHP=0,sL=0,sLP=0,sB=0,sE=0,sBn=0,sA=0,sM=0,sO=0,sTD=0,sN=0;
-      trabajadores.forEach(function(t){
-        sD+=nv(t.diasTrab||t.dias_trab); sH+=nv(t.hrsT||t.horas); sHP+=nv(t.total_tu_h||t.pago_hora);
-        sL+=nv(t.lbsT||t.libras); sLP+=nv(t.total_tu_p||t.pago_avance); sB+=nv(t.bruto||t.total_tu);
-        sE+=nv(t.desc_expreso); sBn+=nv(t.desc_bancario); sA+=nv(t.desc_anticipo);
-        sM+=nv(t.desc_multa); sO+=nv(t.desc_otros); sTD+=nv(t.total_desc); sN+=nv(t.neto);
-      });
-      var rn=function(v){return Math.round(v*100)/100;};
 
-      var HDR_BG='#0d3b6e';var HDR_FG='#fff';
-      var thS='border:1px solid #888;padding:6px 7px;background:'+HDR_BG+';color:'+HDR_FG+';font-family:Arial;font-size:9pt;font-weight:bold;text-align:center;white-space:nowrap;';
-      var tdS='border:1px solid #ccc;padding:4px 6px;font-family:Arial;font-size:9pt;';
-      var tdN=tdS+'text-align:right;';
-
-      var rows='';
       trabajadores.forEach(function(t,i){
         var li=getListado(t.cedula);
         var sect=sv((t.sector&&t.sector.trim())||(li&&li.sector&&li.sector.trim()));
         var cel=sv((t.celular&&t.celular.trim())||(li&&li.celular&&li.celular.trim()));
         var cta=sv(t.cuentaBanco||t.cuenta_banco);
-        // Propietario: solo si la cuenta ES PRESTADA (nombreProp lleno)
-        var tit=sv(t.nombreProp);
-        var cedP=sv(t.cedProp);
-        var bg=i%2===0?'#fff':'#f0f5ff';
-        var td='background:'+bg+';'+tdS;
-        var tn='background:'+bg+';'+tdN;
-        rows+='<tr>'
-          +'<td style="'+tn+'">'+(i+1)+'</td>'
-          +'<td style="'+td+'">'+sv(t.cedula)+'</td>'
-          +'<td style="'+td+'">'+sv(t.nombre)+'</td>'
-          +'<td style="'+td+'">'+sv(c.cargo)+'</td>'
-          +'<td style="'+td+'">'+sv(c.sede)+'</td>'
-          +'<td style="'+td+'">'+sect+'</td>'
-          +'<td style="'+td+'">'+cel+'</td>'
-          +'<td style="'+tn+'">'+nv(t.diasTrab||t.dias_trab)+'</td>'
-          +'<td style="'+tn+'">'+nv(t.hrsT||t.horas)+'</td>'
-          +'<td style="'+tn+'">'+nv(t.total_tu_h||t.pago_hora)+'</td>'
-          +'<td style="'+tn+'">'+nv(t.lbsT||t.libras)+'</td>'
-          +'<td style="'+tn+'">'+nv(t.total_tu_p||t.pago_avance)+'</td>'
-          +'<td style="'+tn+';font-weight:bold;color:#1a3a6c;">'+nv(t.bruto||t.total_tu)+'</td>'
-          +'<td style="'+tn+';color:#dc2626;">'+nv(t.desc_expreso)+'</td>'
-          +'<td style="'+tn+';color:#dc2626;">'+nv(t.desc_bancario)+'</td>'
-          +'<td style="'+tn+';color:#dc2626;">'+nv(t.desc_anticipo)+'</td>'
-          +'<td style="'+tn+';color:#dc2626;">'+nv(t.desc_multa)+'</td>'
-          +'<td style="'+tn+';color:#dc2626;">'+nv(t.desc_otros)+'</td>'
-          +'<td style="'+tn+';color:#dc2626;font-weight:bold;">'+nv(t.total_desc)+'</td>'
-          +'<td style="'+tn+';font-weight:bold;color:#15803d;font-size:10pt;">'+nv(t.neto)+'</td>'
-          +'<td style="'+td+'">'+sv(t.banco)+'</td>'
-          +'<td style="'+td+'">'+cta+'</td>'
-          +'<td style="'+td+'">'+tit+'</td>'
-          +'<td style="'+td+'">'+cedP+'</td>'
-          +'<td style="'+td+';font-weight:bold;color:'+(t.estado==='pagado'?'#15803d':'#b45309')+';">'+(t.estado==='pagado'?'PAGADO':'PENDIENTE')+'</td>'
-          +'<td style="'+td+'">'+sv(t.fecha_pago)+'</td>'
-          +'<td style="'+td+'">'+sv(t.desc_obs)+'</td>'
-          +'</tr>\n';
+        // TITULAR y CED.PROP:
+        // - Cuenta prestada (nombreProp lleno): nombre y cédula del propietario
+        // - Cuenta propia (cta llena, sin nombreProp): nombre y cédula del trabajador
+        // - Sin cuenta (cta vacía): van vacíos (pago efectivo)
+        var tit,cedP;
+        if(t.nombreProp&&sv(t.nombreProp)){
+          tit=sv(t.nombreProp); cedP=sv(t.cedProp);
+        } else if(cta){
+          tit=sv(t.nombre); cedP=sv(t.cedula);
+        } else {
+          tit=''; cedP='';
+        }
+        var dias=nv(t.diasTrab||t.dias_trab);
+        var horas=nv(t.hrsT||t.horas);
+        var phora=nv(t.total_tu_h||t.pago_hora);
+        var lbs=nv(t.lbsT||t.libras);
+        var pavance=nv(t.total_tu_p||t.pago_avance);
+        var bruto=nv(t.bruto||t.total_tu);
+        var dexp=nv(t.desc_expreso),dbanc=nv(t.desc_bancario);
+        var danti=nv(t.desc_anticipo),dmulta=nv(t.desc_multa),dotros=nv(t.desc_otros);
+        var tdesc=nv(t.total_desc),neto=nv(t.neto);
+        sD+=dias;sH+=horas;sHP+=phora;sL+=lbs;sLP+=pavance;sB+=bruto;
+        sE+=dexp;sBn+=dbanc;sA+=danti;sM+=dmulta;sO+=dotros;sTD+=tdesc;sN+=neto;
+        rows.push([
+          i+1, sv(t.cedula), sv(t.nombre), sv(c.cargo), sv(c.sede), sect, cel,
+          dias, horas, phora, lbs, pavance, bruto,
+          dexp, dbanc, danti, dmulta, dotros, tdesc, neto,
+          sv(t.banco), cta, tit, cedP,
+          t.estado==='pagado'?'PAGADO':'PENDIENTE',
+          sv(t.fecha_pago), sv(t.desc_obs)
+        ]);
       });
-
-      var totBg='#0d3b6e';var totFg='#fff';
-      var tb='border:1px solid #888;padding:5px 7px;background:'+totBg+';color:'+totFg+';font-family:Arial;font-size:9pt;font-weight:bold;text-align:right;';
-
-      var html='<table style="font-family:Arial;border-collapse:collapse;width:100%;font-size:9pt">\n'
-        +'<tr><td colspan="27" style="background:'+HDR_BG+';color:'+HDR_FG+';font-size:13pt;font-weight:bold;padding:8px 12px;border:1px solid #888;">SUDAMERICAN PACK &mdash; '+titulo+'</td></tr>\n'
-        +'<tr>'
-          +'<td colspan="2" style="padding:5px 7px;background:#e8f0fe;border:1px solid #ccc;font-weight:bold;">ROL:</td>'
-          +'<td colspan="2" style="padding:5px 7px;border:1px solid #ccc;">'+sv(c.id)+'</td>'
-          +'<td style="padding:5px 7px;background:#e8f0fe;border:1px solid #ccc;font-weight:bold;">PERIODO:</td>'
-          +'<td colspan="3" style="padding:5px 7px;border:1px solid #ccc;">'+sv(c.rango)+'</td>'
-          +'<td style="padding:5px 7px;background:#e8f0fe;border:1px solid #ccc;font-weight:bold;">CARGO:</td>'
-          +'<td colspan="2" style="padding:5px 7px;border:1px solid #ccc;">'+sv(c.cargo)+'</td>'
-          +'<td style="padding:5px 7px;background:#e8f0fe;border:1px solid #ccc;font-weight:bold;">SEDE:</td>'
-          +'<td colspan="2" style="padding:5px 7px;border:1px solid #ccc;">'+sv(c.sede)+'</td>'
-          +'<td colspan="2" style="padding:5px 7px;background:#e8f0fe;border:1px solid #ccc;font-weight:bold;">TRABAJADORES:</td>'
-          +'<td colspan="2" style="padding:5px 7px;border:1px solid #ccc;font-weight:bold;">'+trabajadores.length+'</td>'
-          +'<td colspan="9" style="border:1px solid #ccc;"></td>'
-        +'</tr>\n'
-        +'<tr>'
-          +'<th style="'+thS+'">N&deg;</th><th style="'+thS+'">C&Eacute;DULA</th>'
-          +'<th style="'+thS+';min-width:150px">NOMBRE COMPLETO</th>'
-          +'<th style="'+thS+'">CARGO</th><th style="'+thS+'">SEDE</th>'
-          +'<th style="'+thS+'">SECTOR</th><th style="'+thS+'">CELULAR</th>'
-          +'<th style="'+thS+'">D&Iacute;AS</th><th style="'+thS+'">HORAS</th>'
-          +'<th style="'+thS+'">$ HORA</th><th style="'+thS+'">LIBRAS</th>'
-          +'<th style="'+thS+'">$ AVANCE</th><th style="'+thS+'">BRUTO</th>'
-          +'<th style="'+thS+'">DESC.EXP.</th><th style="'+thS+'">DESC.BANC.</th>'
-          +'<th style="'+thS+'">DESC.ANTI.</th><th style="'+thS+'">DESC.MULTA</th>'
-          +'<th style="'+thS+'">DESC.OTROS</th><th style="'+thS+'">TOTAL DESC.</th>'
-          +'<th style="'+thS+';min-width:70px">NETO A PAGAR</th>'
-          +'<th style="'+thS+'">BANCO</th><th style="'+thS+'">N&deg; CUENTA</th>'
-          +'<th style="'+thS+'">TITULAR</th><th style="'+thS+'">C&Eacute;D. PROP.</th>'
-          +'<th style="'+thS+'">ESTADO</th><th style="'+thS+'">FECHA PAGO</th>'
-          +'<th style="'+thS+'">OBS</th>'
-        +'</tr>\n'
-        +rows
-        +'<tr>'
-          +'<td colspan="7" style="'+tb+';text-align:left;background:'+totBg+';">TOTALES</td>'
-          +'<td style="'+tb+'">'+sD+'</td>'
-          +'<td style="'+tb+'">'+rn(sH)+'</td><td style="'+tb+'">'+rn(sHP)+'</td>'
-          +'<td style="'+tb+'">'+rn(sL)+'</td><td style="'+tb+'">'+rn(sLP)+'</td>'
-          +'<td style="'+tb+'">'+rn(sB)+'</td>'
-          +'<td style="'+tb+'">'+rn(sE)+'</td><td style="'+tb+'">'+rn(sBn)+'</td>'
-          +'<td style="'+tb+'">'+rn(sA)+'</td><td style="'+tb+'">'+rn(sM)+'</td>'
-          +'<td style="'+tb+'">'+rn(sO)+'</td><td style="'+tb+'">'+rn(sTD)+'</td>'
-          +'<td style="'+tb+';color:#86efac;font-size:10pt;">'+rn(sN)+'</td>'
-          +'<td colspan="7" style="'+tb+'"></td>'
-        +'</tr>\n'
-        +'</table>';
-      return html;
+      // Fila totales
+      var rn=function(v){return Math.round(v*100)/100;};
+      rows.push(['TOTALES','','','','','','',
+        sD,rn(sH),rn(sHP),rn(sL),rn(sLP),rn(sB),
+        rn(sE),rn(sBn),rn(sA),rn(sM),rn(sO),rn(sTD),rn(sN),
+        '','','','','','']);
+      return rows;
     }
 
-    var htmlGen=buildSheet(tAll,'ROL DE PAGOS - NOMINA GENERAL');
-    var htmlTr=buildSheet(tTransf,'NOMINA TRANSFERENCIAS ('+tTransf.length+' trabajadores)');
-    var htmlEf=buildSheet(tEfect,'PAGO EN EFECTIVO ('+tEfect.length+' trabajadores)');
+    // Crear hoja XLSX con formato
+    function makeSheet(rows){
+      var ws=XLSX.utils.aoa_to_sheet(rows);
+      ws['!cols']=[{wch:4},{wch:13},{wch:30},{wch:18},{wch:7},{wch:11},{wch:12},
+        {wch:5},{wch:7},{wch:7},{wch:7},{wch:8},{wch:9},
+        {wch:9},{wch:9},{wch:9},{wch:9},{wch:9},{wch:10},{wch:10},
+        {wch:12},{wch:12},{wch:28},{wch:12},{wch:10},{wch:10},{wch:14}];
+      return ws;
+    }
 
-    // Excel multi-sheet via MSO namespace
-    var BOM='\uFEFF';
-    var sheetDefs='<x:ExcelWorksheets>'
-      +'<x:ExcelWorksheet><x:Name>NOMINA_GENERAL</x:Name><x:WorksheetOptions><x:Selected/></x:WorksheetOptions></x:ExcelWorksheet>'
-      +(htmlTr?'<x:ExcelWorksheet><x:Name>NOMINA_TRANSFERENCIAS</x:Name></x:ExcelWorksheet>':'')
-      +(htmlEf?'<x:ExcelWorksheet><x:Name>PAGO_EFECTIVO</x:Name></x:ExcelWorksheet>':'')
-      +'</x:ExcelWorksheets>';
+    if(typeof XLSX==='undefined'||!XLSX.utils){
+      toast('XLSX no disponible — descargando CSV');
+      // CSV fallback con las 3 secciones
+      var csv='\uFEFF';
+      csv+='=== NOMINA GENERAL ===\r\n';
+      buildRows(tAll,'NOMINA GENERAL').forEach(function(r){csv+=r.join(';')+'\r\n';});
+      csv+='\r\n=== TRANSFERENCIAS ('+tTransf.length+') ===\r\n';
+      buildRows(tTransf,'TRANSFERENCIAS').forEach(function(r){csv+=r.join(';')+'\r\n';});
+      csv+='\r\n=== PAGO EFECTIVO ('+tEfect.length+') ===\r\n';
+      buildRows(tEfect,'PAGO EFECTIVO').forEach(function(r){csv+=r.join(';')+'\r\n';});
+      var b2=new Blob([csv],{type:'text/csv;charset=utf-8'});
+      var u2=URL.createObjectURL(b2);
+      var a2=document.createElement('a');a2.href=u2;a2.download='NOMINA_'+c.id+'.csv';
+      document.body.appendChild(a2);a2.click();
+      setTimeout(function(){document.body.removeChild(a2);URL.revokeObjectURL(u2);},500);
+      return;
+    }
 
-    var full=BOM
-      +'<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">\n'
-      +'<head><meta charset="UTF-8">\n'
-      +'<!--[if gte mso 9]><xml><x:ExcelWorkbook>'+sheetDefs+'</x:ExcelWorkbook></xml><![endif]-->\n'
-      +'</head><body>\n'
-      +htmlGen+'\n'
-      +(htmlTr?'<br clear=all>\n'+htmlTr+'\n':'')
-      +(htmlEf?'<br clear=all>\n'+htmlEf+'\n':'')
-      +'</body></html>';
+    var wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, makeSheet(buildRows(tAll,'NOMINA GENERAL')), 'NOMINA_GENERAL');
+    if(tTransf.length) XLSX.utils.book_append_sheet(wb, makeSheet(buildRows(tTransf,'TRANSFERENCIAS')), 'NOMINA_TRANSFERENCIAS');
+    if(tEfect.length)  XLSX.utils.book_append_sheet(wb, makeSheet(buildRows(tEfect,'PAGO EN EFECTIVO')), 'PAGO_EFECTIVO');
 
-    var blob=new Blob([full],{type:'application/vnd.ms-excel;charset=utf-8'});
+    var out=XLSX.write(wb,{bookType:'xlsx',type:'array'});
+    var blob=new Blob([out],{type:'application/octet-stream'});
     var url=URL.createObjectURL(blob);
     var a=document.createElement('a');
-    a.href=url; a.download='NOMINA_SOPASE_'+c.id+'.xls';
+    a.href=url; a.download='NOMINA_SOPASE_'+c.id+'.xlsx';
     document.body.appendChild(a); a.click();
     setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},500);
-    toast('Nomina descargada: '+tAll.length+' total / '+tTransf.length+' transferencias / '+tEfect.length+' efectivo');
+    toast('Nomina: '+tAll.length+' total / '+tTransf.length+' transferencias / '+tEfect.length+' efectivo');
   }catch(err){
     console.error('exportarNomina:',err);
     toast('Error: '+err.message);
