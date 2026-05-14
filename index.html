@@ -881,7 +881,7 @@ function lf(input,tipo){
         if(tipo==='h'){dH=rows;loaded.h=true;const ok=$d('okh');ok.textContent='✓ '+rows.length+' registros';ok.style.display='block';$d('zh').classList.add('ok');
           saveFileHistory('HORA', file.name, rows.length);
           // Auto-detectar cargo desde nombre de archivo si el campo está vacío o tiene valor default
-          autoDetectCargo(file.name);}
+          autoDetectCargo(file.name, raw, hr);}
         else{dA=rows;loaded.a=true;const ok=$d('oka');ok.textContent='✓ '+rows.length+' registros';ok.style.display='block';$d('za').classList.add('ok');
           saveFileHistory('AVANCE', file.name, rows.length);}
       }
@@ -978,7 +978,7 @@ function bM(){
       const tipoCuenta=(ia&&aprobado)?ia.tipo_cuenta:'';
       // Propietario: si nombre_prop está vacío → el titular es el propio trabajador
       const nombreProp=(ia&&aprobado)?(ia.nombre_prop||''):'';
-      const cedProp   =(ia&&aprobado)?(ia.ced_prop   ||''):'';
+      const cedProp   =(ia&&aprobado)?(ia.cedula_prop||''):'';  // fix: ced_prop→cedula_prop
       const DESC_BANCO_FIJO = 1;
       const descBancario = (ia&&aprobado&&cuentaBanco) ? DESC_BANCO_FIJO : 0;
       m[k]={cedula:r.cedula,nombre:r.nombre,sector,celular,sede,aprobacion,cuentaBanco,banco,tipoCuenta,nombreProp,cedProp,descBancario,expresoDia:getExpresoDia(sector),hT:0,eH:0,tH:0,lT:0,eP:0,tP:0,lineasH:[],lineasP:[],fechas:[]};
@@ -2452,52 +2452,50 @@ function cargarDesdeSheets(silent){
     });
 }
 
-/* ── autoDetectCargo: extrae cargo y nombre desde nombre del archivo ─────── */
-function autoDetectCargo(filename){
-  // Ejemplos: CUADRILLA_HORA_ROCIO_CHILAN_2026-04-02_...
-  //           CUADRILLA_HORA_ROCIO CHILAN_2026...
-  //           EMPAQUE_HORA_PEDRO_MORA_...
+/* ── autoDetectCargo: extrae cargo del archivo (contenido y nombre) ──────── */
+function autoDetectCargo(filename, raw, hr){
   var cargoInp=$d('cargo-input');
   if(!cargoInp) return;
-  // Only auto-fill if empty or has generic value
   var current=(cargoInp.value||'').trim().toUpperCase();
-  if(current&&current!=='ROL'&&current!=='CUADRILLA'&&current!=='CARGO') return;
+  // No sobreescribir si ya tiene valor personalizado
+  if(current&&current!=='ROL'&&current!=='CUADRILLA'&&current!=='CARGO'&&current!=='') return;
+
+  // 1. Leer del CONTENIDO del archivo: filas antes del header (título del reporte)
+  if(raw && hr>0){
+    for(var ri=0; ri<hr; ri++){
+      var cell=raw[ri]?String(raw[ri][0]||'').trim():'';
+      if(cell.length>3&&!/^\d/.test(cell)&&cell.toUpperCase()!=='NOMBRE'){
+        cargoInp.value=cell.toUpperCase();
+        cargoInp.style.borderColor='#22c55e';
+        setTimeout(function(){cargoInp.style.borderColor='';},2000);
+        toast('Cargo detectado: '+cell.toUpperCase());
+        return;
+      }
+    }
+  }
+
+  // 2. Fallback: del nombre del archivo
+  // Ej: CUADRILLA_HORA_ROCIO_CHILAN_2026... → CUADRILLA ROCIO CHILAN
   try{
-    // Remove extension
     var name=filename.replace(/\.[^.]+$/,'');
-    // Split by _ or space
     var parts=name.split(/[_\s]+/);
-    // Find HORA or HORAS index
     var horaIdx=-1;
     for(var i=0;i<parts.length;i++){
       if(parts[i].toUpperCase()==='HORA'||parts[i].toUpperCase()==='HORAS'){horaIdx=i;break;}
     }
     if(horaIdx>0){
-      // Cargo = parts before HORA
-      var cargo=parts.slice(0,horaIdx).join(' ').toUpperCase();
-      // Person name = parts after HORA, before any date (YYYY or number)
+      var cargo=parts.slice(0,horaIdx).join(' ');
       var nameParts=[];
       for(var j=horaIdx+1;j<parts.length;j++){
-        if(/^\d{4}/.test(parts[j])) break; // stop at date
+        if(/^\d{4}/.test(parts[j])) break;
         nameParts.push(parts[j]);
       }
-      var personName=nameParts.join(' ');
-      var fullCargo=personName ? cargo+' '+personName : cargo;
-      if(fullCargo.trim()){
-        cargoInp.value=fullCargo.trim();
+      var full=nameParts.length?cargo+' '+nameParts.join(' '):cargo;
+      if(full.trim()){
+        cargoInp.value=full.trim().toUpperCase();
         cargoInp.style.borderColor='#22c55e';
         setTimeout(function(){cargoInp.style.borderColor='';},2000);
-        toast('Cargo detectado: '+fullCargo.trim());
-      }
-    } else if(parts.length>0){
-      // No HORA found, use full name minus extension words
-      var filtered=parts.filter(function(p){
-        return p.length>2&&!/^\d+/.test(p)&&
-          ['XLSX','XLS','CSV','HORA','AVANCE','REPORTE','SOPASE'].indexOf(p.toUpperCase())<0;
-      });
-      if(filtered.length>0){
-        cargoInp.value=filtered.join(' ').toUpperCase().trim();
-        toast('Cargo detectado: '+cargoInp.value);
+        toast('Cargo detectado del nombre: '+full.trim().toUpperCase());
       }
     }
   }catch(e){}
