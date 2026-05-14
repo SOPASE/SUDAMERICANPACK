@@ -879,7 +879,9 @@ function lf(input,tipo){
         const rows=[];
         for(let i=hr+1;i<raw.length;i++){const r=raw[i];if(!r||r.every(c=>c===null||c===''))continue;const obj={};headers.forEach((h,idx)=>{obj[h]=r[idx];});const nom=String(obj['NOMBRE']||'').trim();if(nom&&nom.toUpperCase()!=='NOMBRE')rows.push(obj);}
         if(tipo==='h'){dH=rows;loaded.h=true;const ok=$d('okh');ok.textContent='✓ '+rows.length+' registros';ok.style.display='block';$d('zh').classList.add('ok');
-          saveFileHistory('HORA', file.name, rows.length);}
+          saveFileHistory('HORA', file.name, rows.length);
+          // Auto-detectar cargo desde nombre de archivo si el campo está vacío o tiene valor default
+          autoDetectCargo(file.name);}
         else{dA=rows;loaded.a=true;const ok=$d('oka');ok.textContent='✓ '+rows.length+' registros';ok.style.display='block';$d('za').classList.add('ok');
           saveFileHistory('AVANCE', file.name, rows.length);}
       }
@@ -2448,6 +2450,57 @@ function cargarDesdeSheets(silent){
       if(btn){btn.disabled=false;btn.textContent='☁ Sincronizar';}
       if(!silent) toast('Error de red: '+e.message);
     });
+}
+
+/* ── autoDetectCargo: extrae cargo y nombre desde nombre del archivo ─────── */
+function autoDetectCargo(filename){
+  // Ejemplos: CUADRILLA_HORA_ROCIO_CHILAN_2026-04-02_...
+  //           CUADRILLA_HORA_ROCIO CHILAN_2026...
+  //           EMPAQUE_HORA_PEDRO_MORA_...
+  var cargoInp=$d('cargo-input');
+  if(!cargoInp) return;
+  // Only auto-fill if empty or has generic value
+  var current=(cargoInp.value||'').trim().toUpperCase();
+  if(current&&current!=='ROL'&&current!=='CUADRILLA'&&current!=='CARGO') return;
+  try{
+    // Remove extension
+    var name=filename.replace(/\.[^.]+$/,'');
+    // Split by _ or space
+    var parts=name.split(/[_\s]+/);
+    // Find HORA or HORAS index
+    var horaIdx=-1;
+    for(var i=0;i<parts.length;i++){
+      if(parts[i].toUpperCase()==='HORA'||parts[i].toUpperCase()==='HORAS'){horaIdx=i;break;}
+    }
+    if(horaIdx>0){
+      // Cargo = parts before HORA
+      var cargo=parts.slice(0,horaIdx).join(' ').toUpperCase();
+      // Person name = parts after HORA, before any date (YYYY or number)
+      var nameParts=[];
+      for(var j=horaIdx+1;j<parts.length;j++){
+        if(/^\d{4}/.test(parts[j])) break; // stop at date
+        nameParts.push(parts[j]);
+      }
+      var personName=nameParts.join(' ');
+      var fullCargo=personName ? cargo+' '+personName : cargo;
+      if(fullCargo.trim()){
+        cargoInp.value=fullCargo.trim();
+        cargoInp.style.borderColor='#22c55e';
+        setTimeout(function(){cargoInp.style.borderColor='';},2000);
+        toast('Cargo detectado: '+fullCargo.trim());
+      }
+    } else if(parts.length>0){
+      // No HORA found, use full name minus extension words
+      var filtered=parts.filter(function(p){
+        return p.length>2&&!/^\d+/.test(p)&&
+          ['XLSX','XLS','CSV','HORA','AVANCE','REPORTE','SOPASE'].indexOf(p.toUpperCase())<0;
+      });
+      if(filtered.length>0){
+        cargoInp.value=filtered.join(' ').toUpperCase().trim();
+        toast('Cargo detectado: '+cargoInp.value);
+      }
+    }
+  }catch(e){}
 }
 </script>
 </body>
