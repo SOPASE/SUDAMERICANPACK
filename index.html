@@ -225,6 +225,30 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
 .mdft{display:flex;gap:10px}
 .bcpy{flex:1;padding:10px;display:flex;align-items:center;justify-content:center;gap:8px;background:rgba(37,211,102,0.15);color:#25d366;border:1px solid rgba(37,211,102,0.3);border-radius:var(--rs);font-family:var(--fn);font-size:0.88rem;font-weight:500;cursor:pointer}
 .bwas{flex:1;padding:10px;display:flex;align-items:center;justify-content:center;gap:8px;background:#25d366;color:#fff;border:none;border-radius:var(--rs);font-family:var(--fn);font-size:0.88rem;font-weight:500;cursor:pointer}
+
+@media(max-width:700px){
+  .tabs{gap:2px;padding:4px 2px;overflow-x:auto;flex-wrap:nowrap;}
+  .tab{font-size:0.65rem!important;padding:6px 6px!important;white-space:nowrap;}
+  .tbr{gap:4px;}
+  .tbu{font-size:0.72rem;}
+  .card{padding:12px 10px!important;}
+  .hist-hdr{flex-direction:column!important;gap:8px!important;}
+  #btn-sync-sheets{width:100%!important;font-size:0.78rem!important;}
+  .rmod{width:98vw!important;margin:4px!important;max-height:96vh!important;}
+  .rmod-body{padding:10px 6px!important;}
+  .rmod-tabs{gap:2px!important;}
+  .rmod-tab{font-size:0.68rem!important;padding:5px 6px!important;}
+  .rmod-desc-row{flex-direction:column!important;gap:4px!important;}
+  .hist-act{flex-wrap:wrap!important;gap:4px!important;}
+  .hist-act button{flex:1!important;min-width:80px!important;padding:8px 6px!important;}
+  .hist-nums{grid-template-columns:1fr 1fr!important;}
+  .hist-card{padding:12px 10px!important;}
+  #hf-search{min-width:100%!important;}
+  .trow{flex-direction:column!important;gap:4px!important;}
+  th,td{padding:5px 4px!important;font-size:0.72rem!important;}
+  .zh{min-height:70px!important;padding:16px 12px!important;}
+  .okf{font-size:0.7rem!important;}
+}
 </style>
 </head>
 <body>
@@ -285,24 +309,11 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
     <!-- TAB 1: CARGAR -->
     <div id="p1" class="pane on">
       <div class="card">
-        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">
-          <div style="flex:2;min-width:160px">
-            <label class="cfg-lbl">Cargo / Cuadrilla</label>
-            <input class="fin" type="text" id="cargo-input" placeholder="Ej: CUADRILLA ROCIO CHILAN" style="font-size:0.85rem;padding:7px 11px"/>
-          </div>
-          <div style="flex:1;min-width:100px">
-            <label class="cfg-lbl">Sede</label>
-            <input class="fin" type="text" id="sede-input" value="AMBAS" style="font-size:0.85rem;padding:7px 11px"/>
-          </div>
-          <div style="flex:2;min-width:160px">
-            <label class="cfg-lbl">📁 Drive Folder ID</label>
-            <div style="display:flex;gap:6px">
-              <input class="fin" type="text" id="drive-folder" placeholder="ID carpeta Drive" value="1lJLZiujk5q-hBi9T1CYs1UfBU2pnMF3h" style="font-size:0.8rem;padding:7px 11px"/>
-              <button onclick="initSheets(this)" style="padding:7px 10px;font-size:0.72rem;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);border-radius:5px;color:var(--gr);cursor:pointer;font-family:var(--fn);white-space:nowrap">🔧 Init</button>
-            </div>
-            <span id="init-st" style="font-size:0.68rem;color:var(--tx3)"></span>
-          </div>
-        </div>
+        <div style="display:none">
+  <input type="text" id="cargo-input" value=""/>
+  <input type="text" id="sede-input" value="AMBAS"/>
+  <input type="text" id="drive-folder" value="1lJLZiujk5q-hBi9T1CYs1UfBU2pnMF3h"/>
+</div>
         <div class="ctit">Cargar archivos SOPASE</div>
         <div class="csub">Tarifas, feriados y listado se cargan desde Google Sheet automáticamente.</div>
         <div id="api-st" class="ldg"><div class="spin"></div><span>Conectando con Google Sheet...</span></div>
